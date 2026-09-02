@@ -1,5 +1,5 @@
 /**
- * THE PANEL'S BROWSER VERIFICATION: the gated latch, and the reveal toggle.
+ * THE UI'S REAL-POINTER VERIFICATION: canvas navigation and control wiring.
  *
  * WHY THIS IS NOT `npm test`. Every assertion here needs a real pointer gesture
  * against real Tweakpane DOM. `node --test` has no DOM at all, so the pure rules
@@ -11,6 +11,10 @@
  * press a slider and hold it.
  *
  * ## What it checks
+ *
+ *   PASS 0  DIRECT NAVIGATION. The three launchers share one dock, the pale
+ *           stage pans/zooms outside the clipped dish, the rim bearing rotates,
+ *           the cohort palette appears, and middle-drag pans in another tool.
  *
  *   PASS 1  THE GATED LATCH. Press a gated slider, drag it to its base value,
  *           and assert it is STILL VISIBLE while the button is down -- then
@@ -34,6 +38,12 @@
  *   PASS 3  THE FOLD-BACK'S SNAP. A gated control dragged to within the off zone
  *           but not exactly onto base must store EXACTLY base, so that "is it
  *           off?" stays unambiguous rather than "within epsilon".
+ *
+ *   PASS 4  THE UNIFIED DRAWER. Project, Preferences and Draw share one visible
+ *           host, preserve manual tab choices, and rebuild the correct tier.
+ *
+ *   PASS 5  THE BIPOLAR GATE. A gravity slider remains reachable while a held
+ *           pointer crosses zero in both directions.
  *
  *   PASS 6  FOCUS RELEASE. Drag a slider, then press a hotkey and assert the app
  *           actually received it. Tweakpane focuses the slider TRACK on
@@ -70,6 +80,7 @@ const flag = (name, fallback) => {
   return i === -1 ? fallback : argv[i + 1];
 };
 const port = Number(flag('--port', '5173'));
+const appUrl = `http://localhost:${port}/?bus&preset=hatmanv8&nocalibrate&nosplash`;
 
 const userDataDir = mkdtempSync(path.join(tmpdir(), 'fluoddity-ui-'));
 let chrome = null;
@@ -122,7 +133,7 @@ chrome = spawn(
     // `?nocalibrate` because this reads preference values back and asserts on
     // them: first-run calibration writes worldSize and physicsSteps from a GPU
     // measurement, which would make those assertions depend on the runner.
-    `http://localhost:${port}/?bus&preset=hatmanv8&nocalibrate`,
+    appUrl,
   ],
   { stdio: ['ignore', 'pipe', 'pipe'] },
 );
@@ -177,8 +188,23 @@ const send = (method, params = {}, sid) => {
   return new Promise((resolve) => pending.set(id, resolve));
 };
 
-const { result: targets } = await send('Target.getTargets');
-const page = targets.targetInfos.find((t) => t.type === 'page');
+// Chrome for Testing reports its browser endpoint before it has necessarily
+// created the requested page. Wait for the app target instead of racing target
+// creation or attaching to a transient about:blank page.
+const page = await (async () => {
+  const deadline = Date.now() + 5000;
+  let fallback;
+  while (Date.now() < deadline) {
+    const { result: targets } = await send('Target.getTargets');
+    fallback ??= targets.targetInfos.find((t) => t.type === 'page');
+    const app = targets.targetInfos.find(
+      (t) => t.type === 'page' && t.url.startsWith(`http://localhost:${port}/`),
+    );
+    if (app !== undefined) return app;
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  return fallback;
+})();
 if (page === undefined) die('No page target -- Chrome opened no tab.');
 
 const attach = await send('Target.attachToTarget', {
@@ -189,6 +215,7 @@ const sid = attach.result.sessionId;
 
 await send('Runtime.enable', {}, sid);
 await send('Page.enable', {}, sid);
+await send('Page.navigate', { url: appUrl }, sid);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 await sleep(6000);
 
@@ -341,11 +368,305 @@ const resetViewState = async () => {
 // ===========================================================================
 // PASS 1 -- the gated latch
 // ===========================================================================
-console.log('\nPASS 1: the gated latch (press, drag to base, hold, release)\n');
-
 // Before anything asserts: the tiers persist, so start from first-run defaults
 // rather than from whatever the previous run left behind. See `resetViewState`.
 await resetViewState();
+
+// ===========================================================================
+// PASS 0 -- direct canvas navigation
+// ===========================================================================
+console.log('\nPASS 0: direct canvas navigation\n');
+
+await evaluate(`window.__fluoddity.dispatch({ kind: 'setMouseMode', mode: 'select' })`);
+await sleep(200);
+const navStart = await evaluate(`(() => {
+  const canvas = document.getElementById('app');
+  const stage = document.getElementById('fluoddity-stage-input');
+  const dish = document.getElementById('fluoddity-petri-dish');
+  const r = canvas.getBoundingClientRect();
+  const s = stage?.getBoundingClientRect();
+  const d = dish?.getBoundingClientRect();
+  const camera = window.__fluoddity.cameraState;
+  let x = r.x + r.width - 36;
+  let y = r.y + r.height / 2;
+  if (d) {
+    const right = d.right + 48;
+    const left = d.left - 48;
+    x = right < window.innerWidth - 20 ? right : left > 20 ? left : x;
+    y = d.top + d.height / 2;
+  }
+  return { x: r.x + r.width / 2, y: r.y + r.height / 2,
+    whiteX: x, whiteY: y, viewport: { width:window.innerWidth,height:window.innerHeight },
+    stage: s ? { width:s.width,height:s.height } : null,
+    pan: [...camera.pan], zoom: camera.zoom };
+})()`);
+
+if (
+  navStart.stage?.width === navStart.viewport.width &&
+  navStart.stage?.height === navStart.viewport.height
+) {
+  pass('the gesture stage covers the full viewport beyond the clipped dish');
+} else {
+  fail(`gesture stage geometry is ${JSON.stringify(navStart.stage)}, viewport ${JSON.stringify(navStart.viewport)}`);
+}
+
+const dock = await evaluate(`(() => {
+  const nodes = [
+    document.getElementById('fluoddity-culture-launcher'),
+    document.getElementById('fluoddity-settings-launcher'),
+    document.getElementById('fluoddity-specimen-launcher'),
+  ];
+  if (nodes.some((node) => !node)) return null;
+  return nodes.map((node) => {
+    const r = node.getBoundingClientRect();
+    return { x:r.x,y:r.y,width:r.width,height:r.height,bottom:r.bottom };
+  });
+})()`);
+if (
+  dock !== null &&
+  dock.every((r) => Math.abs(r.width - 56) < 1 && Math.abs(r.height - 56) < 1) &&
+  Math.max(...dock.map((r) => r.bottom)) - Math.min(...dock.map((r) => r.bottom)) < 1 &&
+  dock[0].x < dock[1].x && dock[1].x < dock[2].x
+) {
+  pass('Culture, Settings, and Collection are three aligned bottom-right squares');
+} else {
+  fail(`launcher dock geometry is ${JSON.stringify(dock)}`);
+}
+
+const dismissX = 18;
+const dismissY = navStart.viewport.height / 2;
+const dismissChecks = [];
+for (const [id, surface] of [
+  ['fluoddity-culture-launcher', 'culture'],
+  ['fluoddity-settings-launcher', 'settings'],
+  ['fluoddity-specimen-launcher', 'specimens'],
+]) {
+  await evaluate(`(() => {
+    const node = document.getElementById('${id}');
+    const trigger = node?.querySelector('button') ?? node;
+    trigger?.click();
+  })()`);
+  await sleep(200);
+  await mouse('mousePressed', dismissX, dismissY);
+  await mouse('mouseReleased', dismissX, dismissY, 0);
+  await sleep(200);
+  dismissChecks.push(await evaluate(`(() => {
+    const culture = document.getElementById('fluoddity-control-rack');
+    const specimens = document.getElementById('fluoddity-specimen-lab');
+    const settings = document.getElementById('fluoddity-panel-right');
+    return {
+      surface:'${surface}',
+      closed:culture?.classList.contains('is-collapsed') === true &&
+        specimens?.classList.contains('is-collapsed') === true &&
+        (!settings || getComputedStyle(settings).display === 'none'),
+    };
+  })()`));
+}
+if (dismissChecks.every((result) => result.closed)) {
+  pass('a blank-stage tap consistently dismisses Culture, Settings, and Collection');
+} else {
+  fail(`blank-stage dismissal results are ${JSON.stringify(dismissChecks)}`);
+}
+
+const bearingStart = await evaluate(`(() => {
+  const handle = document.getElementById('fluoddity-dish-orient');
+  const dish = document.getElementById('fluoddity-petri-dish');
+  if (!handle || !dish) return null;
+  const h = handle.getBoundingClientRect();
+  const d = dish.getBoundingClientRect();
+  return { x:h.x+h.width/2,y:h.y+h.height/2,cx:d.x+d.width/2,cy:d.y+d.height/2,
+    rotation:window.__fluoddity.cameraState.rotation };
+})()`);
+if (bearingStart === null) die('The dish orientation handle is missing.');
+const bearingAngle = Math.atan2(
+  bearingStart.y - bearingStart.cy,
+  bearingStart.x - bearingStart.cx,
+);
+const bearingRadius = Math.hypot(
+  bearingStart.x - bearingStart.cx,
+  bearingStart.y - bearingStart.cy,
+);
+const bearingTarget = bearingAngle + 0.42;
+await mouse('mousePressed', bearingStart.x, bearingStart.y);
+await mouse(
+  'mouseMoved',
+  bearingStart.cx + Math.cos(bearingTarget) * bearingRadius,
+  bearingStart.cy + Math.sin(bearingTarget) * bearingRadius,
+);
+await mouse(
+  'mouseReleased',
+  bearingStart.cx + Math.cos(bearingTarget) * bearingRadius,
+  bearingStart.cy + Math.sin(bearingTarget) * bearingRadius,
+  0,
+);
+await sleep(300);
+const bearingAfter = await evaluate(`window.__fluoddity.cameraState.rotation`);
+if (Math.abs(bearingAfter - bearingStart.rotation) > 0.2) {
+  pass(`dragging the rim bearing rotates the dish (${bearingStart.rotation.toFixed(2)} -> ${bearingAfter.toFixed(2)})`);
+} else {
+  fail(`rim bearing drag left rotation at ${bearingAfter}`);
+}
+
+await mouse('mousePressed', navStart.whiteX, navStart.whiteY);
+await mouse('mouseMoved', navStart.whiteX + 84, navStart.whiteY + 42);
+await mouse('mouseReleased', navStart.whiteX + 84, navStart.whiteY + 42, 0);
+await sleep(300);
+const afterPrimaryPan = await evaluate(`[...window.__fluoddity.cameraState.pan]`);
+if (afterPrimaryPan.some((v, i) => Math.abs(v - navStart.pan[i]) > 1e-6)) {
+  pass('Observe drag pans from the pale area outside the dish');
+} else {
+  fail('Observe drag on the pale area left the camera pan unchanged');
+}
+
+await send(
+  'Input.dispatchMouseEvent',
+  { type: 'mouseWheel', x: navStart.whiteX, y: navStart.whiteY, deltaX: 0, deltaY: 120 },
+  sid,
+);
+await sleep(300);
+const afterWheelZoom = await evaluate(`window.__fluoddity.cameraState.zoom`);
+if (Math.abs(afterWheelZoom - navStart.zoom) > 1e-6) {
+  pass(`wheel zoom works over the pale stage (${navStart.zoom} -> ${afterWheelZoom})`);
+} else {
+  fail('wheel input left camera zoom unchanged');
+}
+
+const precessionStart = await evaluate(`(() => {
+  const handle = document.getElementById('fluoddity-dish-orient');
+  const dish = document.getElementById('fluoddity-petri-dish');
+  if (!handle || !dish) return null;
+  const h = handle.getBoundingClientRect();
+  const d = dish.getBoundingClientRect();
+  return { x:h.x+h.width/2,y:h.y+h.height/2,cx:d.x+d.width/2,cy:d.y+d.height/2,
+    rotation:window.__fluoddity.cameraState.rotation };
+})()`);
+if (precessionStart === null) die('The dish orientation handle disappeared after panning.');
+const precessionAngle = Math.atan2(
+  precessionStart.y - precessionStart.cy,
+  precessionStart.x - precessionStart.cx,
+);
+const precessionRadius = Math.hypot(
+  precessionStart.x - precessionStart.cx,
+  precessionStart.y - precessionStart.cy,
+);
+const precessionTarget = precessionAngle - 0.36;
+await mouse('mousePressed', precessionStart.x, precessionStart.y);
+await mouse(
+  'mouseMoved',
+  precessionStart.cx + Math.cos(precessionTarget) * precessionRadius,
+  precessionStart.cy + Math.sin(precessionTarget) * precessionRadius,
+);
+await mouse(
+  'mouseReleased',
+  precessionStart.cx + Math.cos(precessionTarget) * precessionRadius,
+  precessionStart.cy + Math.sin(precessionTarget) * precessionRadius,
+  0,
+);
+await sleep(300);
+const precessionAfter = await evaluate(`(() => {
+  const d = document.getElementById('fluoddity-petri-dish').getBoundingClientRect();
+  return { cx:d.x+d.width/2,cy:d.y+d.height/2,
+    rotation:window.__fluoddity.cameraState.rotation };
+})()`);
+const centreDrift = Math.hypot(
+  precessionAfter.cx - precessionStart.cx,
+  precessionAfter.cy - precessionStart.cy,
+);
+if (
+  Math.abs(precessionAfter.rotation - precessionStart.rotation) > 0.18 &&
+  centreDrift < 1
+) {
+  pass(`rotation keeps the panned dish centre fixed (${centreDrift.toFixed(3)}px drift)`);
+} else {
+  fail(`panned rotation changed by ${precessionAfter.rotation - precessionStart.rotation} with ${centreDrift}px centre drift`);
+}
+
+await evaluate(`window.__fluoddity.dispatch({ kind: 'stepHighlightedCohort', delta: 1 })`);
+await sleep(300);
+const cohortPalette = await evaluate(`(() => {
+  const palette = document.getElementById('fluoddity-cohort-actions');
+  const status = window.__fluoddity.status();
+  if (!palette) return { reason:'missing', highlighted:status.highlightedCohort,
+    enabled:status.highlightEnabled };
+  if (palette.hidden) return { reason:'hidden', highlighted:status.highlightedCohort,
+    enabled:status.highlightEnabled, display:getComputedStyle(palette).display };
+  const text = [...palette.querySelectorAll('button')].map((button) => button.textContent.trim());
+  const r = palette.getBoundingClientRect();
+  return { text, width:r.width, height:r.height };
+})()`);
+if (
+  cohortPalette !== null &&
+  Array.isArray(cohortPalette.text) &&
+  ['Save','Mutate','Restart dish'].every((label) => cohortPalette.text.includes(label)) &&
+  cohortPalette.width >= 236 && cohortPalette.height < 360
+) {
+  pass('a selected cohort opens the compact Save / Mutate / Restart palette');
+} else {
+  fail(`cohort palette is ${JSON.stringify(cohortPalette)}`);
+}
+await mouse('mousePressed', dismissX, dismissY);
+await mouse('mouseReleased', dismissX, dismissY, 0);
+await sleep(300);
+const paletteDismissed = await evaluate(`(() => {
+  const palette = document.getElementById('fluoddity-cohort-actions');
+  return palette?.hidden === true && window.__fluoddity.status().highlightedCohort < 0;
+})()`);
+if (paletteDismissed) {
+  pass('a blank-stage tap also dismisses the selected-cohort palette');
+} else {
+  fail('the selected-cohort palette remained open after a blank-stage tap');
+}
+
+await evaluate(`window.__fluoddity.dispatch({ kind: 'setMouseMode', mode: 'draw' })`);
+await sleep(200);
+const beforeMiddlePan = await evaluate(`[...window.__fluoddity.cameraState.pan]`);
+await send(
+  'Input.dispatchMouseEvent',
+  { type: 'mousePressed', x: navStart.x, y: navStart.y, button: 'middle', buttons: 4 },
+  sid,
+);
+await send(
+  'Input.dispatchMouseEvent',
+  { type: 'mouseMoved', x: navStart.x - 66, y: navStart.y + 28, button: 'middle', buttons: 4 },
+  sid,
+);
+await send(
+  'Input.dispatchMouseEvent',
+  { type: 'mouseReleased', x: navStart.x - 66, y: navStart.y + 28,
+    button: 'middle', buttons: 0 },
+  sid,
+);
+await sleep(300);
+const afterMiddlePan = await evaluate(`[...window.__fluoddity.cameraState.pan]`);
+if (afterMiddlePan.some((v, i) => Math.abs(v - beforeMiddlePan[i]) > 1e-6)) {
+  pass('middle drag pans while Draw is active');
+} else {
+  fail('middle drag did not pan while Draw was active');
+}
+await evaluate(`window.__fluoddity.dispatch({ kind: 'setMouseMode', mode: 'select' })`);
+await sleep(200);
+
+console.log('\nPASS 1: the gated latch (press, drag to base, hold, release)\n');
+
+// The canvas-first shell starts with settings closed. Open it through the same
+// launcher a user clicks so every pointer assertion below exercises visible
+// controls rather than a hidden-but-queryable Tweakpane tree.
+const settingsOpened = await evaluate(`(() => {
+  const drawer = document.getElementById('fluoddity-panel-right');
+  if (drawer && getComputedStyle(drawer).display !== 'none') return true;
+  const launcher = document.getElementById('fluoddity-settings-launcher');
+  if (!(launcher instanceof HTMLButtonElement)) return false;
+  launcher.click();
+  return true;
+})()`);
+if (!settingsOpened) die('No Settings launcher -- the selector is stale.');
+await sleep(500);
+
+// Project used to live in an always-visible left pane. It is now a tab in the
+// unified drawer, so bring that tab forward before exercising Project fields.
+await evaluate(`document.querySelector('[data-tab="project"]')?.click()`);
+await sleep(300);
+
 await goAdvanced();
 
 // Sensor Angle Jitter: GATED, base 0.0, plain (no curve, no inversion), 0..1,
@@ -452,6 +773,22 @@ const STRAFE = 'config.gravityStrafe';
 
 if ((await visible(GATE)) !== 'shown') die('The Gravity gate is not on screen.');
 
+// The selected preset may carry gravity. Normalize the three members so this
+// pass tests the closed -> revealed transition rather than inheriting content
+// state from whichever specimen happened to load.
+for (const [field, label, value] of [
+  ['gravityStrafe', 'Gravity (Strafe)', 0],
+  ['gravityForce', 'Gravity (Force)', 0],
+  ['radialGravity', 'Radial Gravity', false],
+]) {
+  await evaluate(
+    `window.__fluoddity.dispatch({ kind: 'editSetting',
+       setting: { field: '${field}', source: 'config', label: '${label}' },
+       value: ${JSON.stringify(value)} })`,
+  );
+}
+await sleep(700);
+
 const before = await visible(STRAFE);
 if (before === 'hidden' || before === 'absent') {
   pass('gravity sliders start hidden with both values at zero');
@@ -540,9 +877,9 @@ if (clearedStrafe === 0 && clearedForce === 0) {
 }
 
 // ===========================================================================
-// PASS 4 -- the two panels: per-panel tiers, the tool-driven tabs, the overlay
+// PASS 4 -- the unified drawer: per-section tiers, tool-driven tabs, overlay
 // ===========================================================================
-console.log('\nPASS 4: the two panels, the tabs, and the overlay\n');
+console.log('\nPASS 4: the unified drawer, the tabs, and the overlay\n');
 
 /**
  * Which tab the strip says is active, by its accent underline.
@@ -556,9 +893,9 @@ console.log('\nPASS 4: the two panels, the tabs, and the overlay\n');
 const activeTab = () =>
   evaluate(`(() => {
     const all = [...document.querySelectorAll('[data-tab]')];
-    if (all.length !== 2) return \`expected 2 tabs, found \${all.length}\`;
+    if (all.length !== 3) return \`expected 3 tabs, found \${all.length}\`;
     const shown = all.filter((b) => b.offsetParent !== null);
-    if (shown.length !== 2) return \`only \${shown.length} of 2 tabs are visible\`;
+    if (shown.length !== 3) return \`only \${shown.length} of 3 tabs are visible\`;
     const on = shown.filter((b) => b.style.boxShadow && b.style.boxShadow !== 'none');
     return on.length === 1 ? on[0].dataset.tab : \`ambiguous:\${on.length}\`;
   })()`);
@@ -571,18 +908,20 @@ const setTool = async (mode) => {
   await sleep(300);
 };
 
-// --- both panels exist, on the sides they claim ---------------------------
-const sides = await evaluate(`(() => {
+// --- the legacy left host is retired and one drawer owns every tab ---------
+const shell = await evaluate(`(() => {
   const l = document.getElementById('fluoddity-panel-left');
   const r = document.getElementById('fluoddity-panel-right');
   if (!l || !r) return 'missing';
-  const lr = l.getBoundingClientRect(), rr = r.getBoundingClientRect();
-  return lr.x < rr.x ? 'ok' : 'swapped';
+  if (l.offsetParent !== null || l.querySelector('[data-section]')) return 'left-active';
+  if (getComputedStyle(r).display === 'none' || r.getBoundingClientRect().width === 0)
+    return 'drawer-hidden';
+  return r.querySelectorAll('[data-tab]').length === 3 ? 'ok' : 'tabs-missing';
 })()`);
-if (sides === 'ok') {
-  pass('two panels, Project left and Settings right');
+if (shell === 'ok') {
+  pass('one visible settings drawer owns Project, Preferences, and Draw');
 } else {
-  fail(`the two panels are "${sides}"`);
+  fail(`the unified settings shell is "${shell}"`);
 }
 
 // --- the parked sections are parked ---------------------------------------
@@ -608,6 +947,8 @@ if (parked === '') {
 // control that ONLY EXISTS in Advanced.
 const ADV_ONLY = 'prefs.tonemapSoftness';
 await goAdvanced('advancedPreferences');
+await evaluate(`document.querySelector('[data-tab="preferences"]')?.click()`);
+await sleep(200);
 if ((await visible(ADV_ONLY)) === 'shown') {
   pass('ticking Advanced REBUILT the panel, not just the preference');
 } else {
@@ -631,6 +972,8 @@ if (tiers[0] === true && tiers[1] === true && tiers[2] === false) {
 }
 
 // --- the tabs follow the tool, as a TRANSITION ----------------------------
+await evaluate(`document.querySelector('[data-tab="preferences"]')?.click()`);
+await sleep(200);
 await setTool('select');
 const t0 = await activeTab();
 await setTool('shove');
@@ -668,9 +1011,12 @@ const overlay = await evaluate(`(() => {
   const slider = root.querySelector('[data-setting="config.mutationScale"]');
   const button = root.querySelector('[data-setting="config.mutationSeed.randomize"]');
   if (!slider || !button) return 'incomplete';
-  // The root must not eat canvas drags: it spans the full width to centre its
-  // contents, so only the bar inside it may take the pointer.
-  if (getComputedStyle(root).pointerEvents !== 'none') return 'pointer-trap';
+  // On touch this is the fixed canvas bar, whose root must pass drags through.
+  // On desktop it is re-homed inside the bounded Culture drawer, where taking
+  // pointers is intentional; a collapsed drawer keeps it out of hit testing.
+  const rack = root.closest('#fluoddity-control-rack');
+  if (rack === null && getComputedStyle(root).pointerEvents !== 'none')
+    return 'pointer-trap';
   return 'ok';
 })()`);
 if (overlay === 'ok') {
@@ -679,15 +1025,15 @@ if (overlay === 'ok') {
   fail(`the mutation overlay is "${overlay}"`);
 }
 
-// Mutation Scale must NOT also be in the Project panel -- one control, one place.
+// Mutation Scale must NOT also be in the settings drawer -- one control, one place.
 const inPanel = await evaluate(`(() => {
-  const left = document.getElementById('fluoddity-panel-left');
-  return left?.querySelector('[data-setting="config.mutationScale"]') !== null;
+  return [...document.querySelectorAll('#fluoddity-panel-left, #fluoddity-panel-right')]
+    .some((panel) => panel.querySelector('[data-setting="config.mutationScale"]'));
 })()`);
 if (!inPanel) {
-  pass('Mutation Scale is only in the overlay, not also in the Project panel');
+  pass('Mutation Scale is only in the overlay, not also in the settings drawer');
 } else {
-  fail('Mutation Scale is in BOTH the overlay and the Project panel');
+  fail('Mutation Scale is in BOTH the overlay and the settings drawer');
 }
 
 // The Reroll button drives the same command the old Randomize did.
@@ -726,6 +1072,8 @@ if (seedBefore !== seedAfter) {
 console.log('\nPASS 5: dragging a gravity slider across zero\n');
 
 await setTool('select');
+await evaluate(`document.querySelector('[data-tab="project"]')?.click()`);
+await sleep(200);
 
 // Re-tick the gate: PASS 2 left it unticked and its fields zeroed.
 if ((await visible(GATE)) !== 'shown') die('The Gravity gate is not on screen.');
@@ -802,6 +1150,9 @@ if (Math.abs(restingValue) < 0.02 && gateAfter === false) {
  * being asked is "did the keystroke reach the app", not "what did it do".
  */
 console.log('\nPASS 6: focus release (drag a slider, then use the keyboard)\n');
+
+await evaluate(`document.querySelector('[data-tab="preferences"]')?.click()`);
+await sleep(200);
 
 /** Where focus is, as a short label -- the panel marker is what actually matters. */
 const focusReport = () =>
@@ -900,7 +1251,7 @@ await mouse('mousePressed', fieldBox.x, fieldBox.y);
 await mouse('mouseReleased', fieldBox.x, fieldBox.y, 0);
 await sleep(250);
 const afterClick = await focusReport();
-if (afterClick === 'PANEL:input') {
+if (afterClick.startsWith('PANEL:input')) {
   pass('clicking into a writable number field KEPT focus (it stays typable)');
 } else {
   fail(

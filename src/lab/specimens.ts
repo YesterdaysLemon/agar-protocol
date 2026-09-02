@@ -46,6 +46,23 @@ export interface SpecimenDetails {
   readonly notes: string;
 }
 
+/** Replace only the captured lineage rule, leaving its physical traits intact. */
+export function specimenSourceWithRule(
+  source: SpecimenSource,
+  rule: readonly number[],
+): SpecimenSource {
+  const saved = fromDocument(source.document, 'selected cohort');
+  const config = saved.configs[0];
+  if (config === undefined) throw new Error('A selected cohort needs one configuration.');
+  if (rule.length !== config.rule.length || rule.some((value) => !Number.isFinite(value))) {
+    throw new Error('The selected cohort rule is incomplete.');
+  }
+  return {
+    ...source,
+    document: toDocument([{ ...config, rule: [...rule] }], saved.world, saved.notes),
+  };
+}
+
 interface KeyValueStorage {
   getItem(key: string): string | null;
   setItem(key: string, value: string): void;

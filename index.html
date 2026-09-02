@@ -104,9 +104,9 @@
     <style>
       :root {
         color-scheme: light;
-        --lab-stage-reserve: 236px;
-        --lab-dish-radius: min(43vh, calc(43vw - 101.5px));
-        --lab-dish-diameter: min(86vh, calc(86vw - 203px));
+        --lab-stage-reserve: 0px;
+        --lab-dish-radius: 43vmin;
+        --lab-dish-diameter: 86vmin;
       }
 
       html, body {
@@ -153,7 +153,12 @@
         background: #020405;
         clip-path: circle(var(--lab-dish-radius) at 50% 50%);
         touch-action: none;
+        cursor: grab;
       }
+
+      #app:active { cursor: grabbing; }
+      #app[data-tool='draw'],
+      #app[data-tool='shove'] { cursor: crosshair; }
 
       #gpu-error {
         position: fixed;

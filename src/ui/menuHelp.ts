@@ -34,7 +34,7 @@
  * reads as part of the description rather than as a footnote.
  */
 const PROJECT_SCOPE =
-  'Stores all the settings on the project panel and current particle behavior ' +
+  'Stores the Project-tab settings and current particle behavior ' +
   '(including mutations)';
 
 /**
@@ -77,7 +77,7 @@ export const RESET_HELP =
 
 /** Editor > Toggle UI Panels, shared with the bar's gear button. */
 export const TOGGLE_UI_HELP =
-  'Show/Hide the project and preferences control panels';
+  'Open or close the unified Settings drawer';
 
 /**
  * Simulation > Pause / Resume, shared with the touch bar's pause button.
@@ -99,15 +99,15 @@ export const MENU_HELP: Readonly<Record<string, string>> = {
   'Save...': `Save the current project. ${PROJECT_SCOPE}`,
 
   'Copy Link to This Project':
-    'Copy a url to the clipboard that opens Fluoddity.com to the current ' +
-    `project. Encodes all the settings on the project panel and current ` +
+    'Copy a URL to the clipboard that opens Agar Protocol to the current ' +
+    `project. Encodes all the settings on the Project tab and current ` +
     'particle behavior (including mutations)',
   // KEYED WITHOUT "URL", which is what the row is actually called. The row was
   // renamed when it learned to read stamped screenshots as well as links, and
   // this key kept the old name -- so the lookup missed and the row silently lost
   // its tooltip. The text below is the one that describes BOTH inputs.
   'Load Project from Clipboard':
-    'Decode a fluoddity permalink or QR-code containing screenshot and load it ' +
+    'Decode an Agar Protocol permalink or QR-code screenshot and load it ' +
     'as the current project. Equivalent to paste/ctrl-V',
   // THE ELLIPSIS IS PART OF THE KEY. Both screenshot rows end in a real `…`
   // character rather than three periods, and the lookup is exact -- a key
@@ -142,10 +142,10 @@ export const MENU_HELP: Readonly<Record<string, string>> = {
   'Revert to Saved': 'Equivalent to File->Load <Filename>',
 
   Select:
-    'Click to select a cohort, allowing you to generate children with similar ' +
-    'behavior and conduct artificial selection',
-  Shove: 'Left mouse to push particles away. Right mouse to attract them',
-  Draw: 'Left mouse to create barriers that repel particles. Right mouse to erase them',
+    'Click to select a cohort; drag to pan the dish. A selected cohort can ' +
+    'become the parent of a new generation',
+  Shove: 'Primary mouse pushes; secondary mouse pulls; middle-drag pans',
+  Draw: 'Primary mouse paints barriers; secondary mouse erases; middle-drag pans',
 
   'Toggle Trail-Map View':
     'View the trails left behind by particles instead of the particles ' +
@@ -153,11 +153,11 @@ export const MENU_HELP: Readonly<Record<string, string>> = {
     'right, Purple is down, and Cyan is left',
   'Reset View': 'Return the camera to the default location/zoom',
   'Reset Editor Preferences...':
-    'Restore Fluoddity to factory settings. Equivalent to visiting the website ' +
+    'Restore Agar Protocol to factory settings. Equivalent to visiting the website ' +
     'for the first time',
   // NAMES THE GEAR IN WORDS, not with the glyph the request used: this is a
   // text tooltip and a `<Gear symbol>` placeholder would render literally.
-  'Toggle UI Panels': `${TOGGLE_UI_HELP}. Equivalent to pressing the gear button`,
+  'Open / Close Settings': `${TOGGLE_UI_HELP}. Equivalent to pressing the gear button`,
 
   'Pause / Resume': PAUSE_HELP,
   Reset: RESET_HELP,

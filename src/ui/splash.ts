@@ -87,7 +87,7 @@ type Block = string | readonly string[] | typeof DIVIDER;
  */
 export type Variant = 'welcome' | 'guide' | 'controls';
 
-const WELCOME_HEADING = 'Welcome to Fluoddity!';
+const WELCOME_HEADING = 'Welcome to Agar Protocol';
 
 /**
  * The first-run copy. FIVE LINES, and it should stay that way.
@@ -97,60 +97,54 @@ const WELCOME_HEADING = 'Welcome to Fluoddity!';
  * away and says so on the last line.
  */
 const WELCOME_BODY: readonly Block[] = [
-  'Part interactive lava lamp, part evolvable ant farm — in Fluoddity ' +
-    'thousands of particles interact through pheromone-like trails they leave ' +
-    'behind as they move.',
+  'Cultivate evolving digital lineages in a live petri dish. Each cohort shares ' +
+    'a behavior, leaves a trail, and responds to the culture around it.',
   [
-    'See something you like? Click on it and you can generate children with ' +
-      'similar behaviors.',
-    'Try thumbing through the presets with File → Load to see some ' +
-      'possibilities!',
-    'Press (H) or go to Help → Guide for details; press (?) or Help → ' +
-      'Controls for the list of keys.',
+    'Drag the dish to pan. Scroll or pinch to zoom. Click or tap a cohort to isolate it.',
+    'Archive a lineage from the DNA-marked Collection drawer, then select records ' +
+      'and inoculate a fresh culture.',
+    'Open Project for presets and saves; use the gear for settings. Help → Controls ' +
+      'has the complete gesture and keyboard reference.',
   ],
 ];
 
 const GUIDE_HEADING = 'Guide';
 
 const GUIDE_BODY: readonly Block[] = [
-  'Basics',
+  'Cultivate',
   [
-  'There is no fixed particle behavior in Fluoddity. Instead, each particle ' +
-    'has a simple brain that it uses to process local trail ' +
-    'conditions and decide how to behave.' ,
-    'Groups of particles, called cohorts, all share the same behavior.',
-  ],  "There's a lot to explore in Fluoddity! But most of the time, all you'll need is File->Save/Load "+
-  "and the main control bar at the top of the screen."+
-  ' Most actions have hotkeys indicated by parentheses and any action that'+
-  ' changes a project can be undone with (Z).',
-  'Press ? or go to Help → Controls for the full list of keys and mouse tools.',
-  DIVIDER,
-  "Getting Started:",
-  "Go to File->Load and select a preset that appeals to you. Diversity and Medley can be good places to start exploring. Click on a cohort that you want to see more of, or reroll all the current mutations with (F). In Fluoddity, there is always current set of brain parameters that act as the 'parent'. If you reduce mutation scale to 0, all the particles will behave exactly as the parent did. Selecting a cohort and generating children allows you to set a new parent and see a new crop mutations of it.",
-  DIVIDER,
-  "Tips:",
-  ["I like to start at 16 or 4 cohorts (press the buttons to the far left of the mutation slider) and reduce down to 1 once I've found something I like.",
-    "I usually set Mutation rate somewhere between 0.1 and 0.3 when I'm exploring",
-    "Set/Load checkpoints with (C)/(V) so that you can experiment without losing your place.",
-    "Enable cohort fences if you want to keep the cohorts from mixing together (Click the dotted circle button to the left of the mutation bar).",
-    "File->Save your favorite creations or turn them into shareable urls with Share->Copy Link to this Project"
+    'There is no fixed particle behavior. Each particle has a small brain that ' +
+      'responds to nearby trails; particles in one cohort share the same behavior.',
+    'Start from Project → Load, then adjust Mutation Scale and reroll until a ' +
+      'cohort catches your eye.',
   ],
   DIVIDER,
-  'Understanding the algorithm:',
-  "Particles in Fluoddity have no direct interactions with each-other. Instead, they leave trails as they move. These trails decay and diffuse over time. Particles respond to the density and direction of trails around them. There is no fixed rule that determines how particles respond to their senses: Each particle has a simple neural-net like brain which determines how the particle responds to stimuli.",
-  "Those responses take the form of:",
-  ["A force which cause the the particle to accelerate/brake/turn.",
-    "A so called 'strafe', like a little hop, which direcltly shifts particle position without changing it's velocity."
-  ],
-  "Each cohort has a unique mutation of the current parent brain, causing their behaviors to diverge for nonzero Mutation scale.",
-  "Learn More:",
+  'Isolate',
+  'Choose Observe, click or tap a cohort, then generate children. The selected ' +
+    'behavior becomes the parent and every cohort receives a new variation of it.',
+  DIVIDER,
+  'Archive and curate',
   [
-  "Fluoddity is an extension of the classic Physarum model which you can read about in this excellent Sage Jenson blog post: https://cargocollective.com/sagejenson/physarum",
-  "This github readme page contains many more details on how this system expands on traditional Physarum simulations:"+
-  "https://github.com/aphid91/Fluoddity",
-  "This website was written almost entirely by Claude 5 Opus. It is open source at https://github.com/aphid91/Fluoddity-Web"
-  ]
-
+    'Open Collection with the DNA icon and archive the current parent or selected cohort.',
+    'Add notes while the motion is fresh. Records stay in this browser.',
+    'Select up to eight archived records, choose offspring variation, and inoculate ' +
+      'a new multi-lineage culture.',
+  ],
+  DIVIDER,
+  'Good working habits',
+  [
+    'Four or sixteen cohorts make broad exploration easy; reduce to one when refining.',
+    'Mutation Scale around 0.1–0.3 is a useful starting range, not a rule.',
+    'Use checkpoints before a risky branch and Project → Save for keepers.',
+    'Cohort fences keep lineages from mixing while you compare them.',
+  ],
+  DIVIDER,
+  'Learn more',
+  [
+    'Agar Protocol extends a classic Physarum trail model: https://cargocollective.com/sagejenson/physarum',
+    'Original simulation and technical background: https://github.com/aphid91/Fluoddity',
+    'Web engine source: https://github.com/aphid91/Fluoddity-Web',
+  ],
 ];
 
 const CONTROLS_HEADING = 'Controls';
@@ -161,17 +155,17 @@ const CONTROLS_HEADING = 'Controls';
  * have to scroll past the algorithm to reach it.
  */
 const CONTROLS_BODY: readonly Block[] = [
-  'Press X or click the gear icon to toggle the control panels:',
+  'Workspace drawers',
   [
-    'The panel on the right shows your editor and tool preferences.',
-    'The panel on the left shows your current project. These values are stored ' +
-      'and loaded by File → Save/Load, along with particle behavior and ' +
-      'mutations.',
+    'The culture icon opens Project, Share, History, Run, and live culture controls.',
+    'The DNA icon opens Collection for archiving and inoculating specimens.',
+    'The gear opens one readable settings drawer with Project, Preferences, and Drawing tabs.',
+    'Only one drawer stays open at a time; press X to close or reopen Settings.',
   ],
   DIVIDER,
   'Keyboard controls',
   [
-    'WASD: pan camera',
+    'WASD or primary-drag in Observe: pan camera',
     'Q/E/Scroll wheel: zoom camera',
     'X: toggle hide UI',
     '? or /: Display this window',
@@ -202,21 +196,19 @@ const CONTROLS_BODY: readonly Block[] = [
   ],
   DIVIDER,
   'Mouse controls',
-  'Tool: Select',
-  'See something you like? Click on a particle to select its cohort: all the ' +
-    'particles with which it shares behavior. Click it again, press enter, or use '+
-    'the yellow button on the hint bar to confirm selection and set the chosen cohort '+
-    'as the new parent. Each cohort will take on a unique mutation of that parent. ' +
-    'This process can be repeated, making it possible to explore the ' +
-    'space of possible behaviors. When in select mode, right click is mapped ' +
-    'to undo.',
-
-  'Tool: Shove',
-  'Hold left mouse to push particles away from your cursor. Hold right mouse ' +
-    'to pull them in.',
-
-  'Tool: Draw',
-  'Left click to draw barriers that repel particles. Right click to erase.',
+  [
+    'Observe: click a cohort to select it; drag empty or occupied dish space to pan.',
+    'Shove: hold primary to push and secondary to pull particles.',
+    'Draw: hold primary to paint barriers and secondary to erase.',
+    'Middle-drag pans in every tool. Scroll zooms toward the pointer in every tool.',
+  ],
+  DIVIDER,
+  'Touch controls',
+  [
+    'Observe: tap to select, drag to pan, and pinch to pan and zoom.',
+    'Draw or Shove: the active tool owns a one-finger drag; use two fingers to navigate.',
+    'The bottom bar keeps Pause, Mutation Scale, culture actions, and Settings in thumb reach.',
+  ],
 ];
 
 /** Blocks that are a bold sub-heading rather than body copy. */

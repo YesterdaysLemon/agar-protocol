@@ -623,7 +623,6 @@ async function start(): Promise<void> {
       : new SpecimenLab({
           bus: orchestrator,
           canvas,
-          mobile,
           camera: () => orchestrator.cameraState,
           canvasSize: () => orchestrator.canvasDimensions,
         });
@@ -1033,6 +1032,9 @@ async function start(): Promise<void> {
     // that readout print this frame's `Status` instead -- a silent wrong answer
     // in the one surface that exists for diagnosing wrong answers.
     const frameStatus = orchestrator.status();
+    if (canvas.dataset['tool'] !== frameStatus.mouseMode) {
+      canvas.dataset['tool'] = frameStatus.mouseMode;
+    }
     const recording = recorder !== null;
 
     if (!recording && !frameStatus.paused) {

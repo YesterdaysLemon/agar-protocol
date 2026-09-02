@@ -16,7 +16,12 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { InputTracker, LEFT_BUTTON, RIGHT_BUTTON } from './inputTracker.ts';
+import {
+  InputTracker,
+  LEFT_BUTTON,
+  MIDDLE_BUTTON,
+  RIGHT_BUTTON,
+} from './inputTracker.ts';
 
 /** A frame's worth of nothing, so a test can advance without adding input. */
 const TICK = 1 / 60;
@@ -94,6 +99,47 @@ test('a press fires for exactly one frame', () => {
     false,
     'a held button would select a new particle every frame',
   );
+});
+
+test('a short primary gesture becomes one click on release', () => {
+  const tracker = new InputTracker();
+  tracker.onPointerMove(100, 100);
+  tracker.onPointerDown(LEFT_BUTTON, false);
+  tracker.onPointerMove(103, 102);
+  assert.equal(tracker.freeze(TICK).leftClicked, false, 'click waits for release');
+
+  tracker.onPointerUp(LEFT_BUTTON);
+  assert.equal(tracker.freeze(TICK).leftClicked, true);
+  assert.equal(tracker.freeze(TICK).leftClicked, false, 'click is a one-shot');
+});
+
+test('primary drag crosses slop, pans, and does not also click', () => {
+  const tracker = new InputTracker();
+  tracker.onPointerMove(100, 100);
+  tracker.onPointerDown(LEFT_BUTTON, false);
+  tracker.onPointerMove(112, 108);
+  tracker.onPointerUp(LEFT_BUTTON);
+
+  const drag = tracker.freeze(TICK);
+  assert.deepEqual(drag.panDelta, [12, 8]);
+  assert.equal(drag.primaryPanning, true, 'a fast drag still pans after release');
+  assert.equal(drag.leftDragging, false);
+  assert.equal(drag.leftClicked, false);
+});
+
+test('middle drag records universal pan without a primary tool gesture', () => {
+  const tracker = new InputTracker();
+  tracker.onPointerMove(20, 40);
+  tracker.onPointerDown(MIDDLE_BUTTON, false);
+  tracker.onPointerMove(35, 31);
+  tracker.onPointerUp(MIDDLE_BUTTON);
+
+  const state = tracker.freeze(TICK);
+  assert.equal(state.middleDragging, false);
+  assert.equal(state.middlePanning, true, 'completed movement remains a pan event');
+  assert.equal(state.leftDragging, false);
+  assert.deepEqual(state.panDelta, [15, -9]);
+  assert.deepEqual(tracker.freeze(TICK).panDelta, [0, 0], 'pan delta drains');
 });
 
 test('dragging persists across frames but pressed does not', () => {

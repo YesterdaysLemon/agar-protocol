@@ -1,5 +1,10 @@
 import type { CommandBus, Status } from '../orchestrator/commands.ts';
 import type { CameraState } from '../camera/cameraState.ts';
+import {
+  announceWorkspaceDrawer,
+  closeWhenWorkspaceDrawerChanges,
+  dismissWorkspaceDrawers,
+} from '../ui/workspaceDrawer.ts';
 import { worldToScreenNdc } from '../particleSystem/coords.ts';
 import { captureRegion, imageToCanvas } from '../ui/shareCapture.ts';
 import {
@@ -10,9 +15,15 @@ import {
   editSpecimen,
   loadSpecimens,
   saveSpecimens,
+  specimenSourceWithRule,
   type Specimen,
   type SpecimenSource,
 } from './specimens.ts';
+import {
+  rotateDishBy,
+  rotationFromBearingDrag,
+  setDishRotation,
+} from './dishOrientation.ts';
 import './specimenLab.css';
 
 export interface SpecimenLabOptions {
@@ -20,8 +31,14 @@ export interface SpecimenLabOptions {
   readonly canvas: HTMLCanvasElement;
   readonly camera: () => CameraState;
   readonly canvasSize: () => readonly [number, number];
-  readonly mobile?: boolean;
 }
+
+const SPECIMEN_ICON =
+  '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true">' +
+    '<path d="M3.5 3.5h17v17h-17z"></path>' +
+    '<path d="M7 5.5l10 4.2-10 4.6 10 4.2M17 5.5L7 9.7l10 4.6-10 4.2"></path>' +
+    '<path d="M9.5 7h5M8.2 12h7.6M9.5 17h5"></path>' +
+  '</svg>';
 
 function button(label: string, className: string): HTMLButtonElement {
   const el = document.createElement('button');
@@ -90,13 +107,28 @@ function shortDate(iso: string): string {
   }
 }
 
+function pointerAngle(event: PointerEvent, center: readonly [number, number]): number {
+  return Math.atan2(event.clientY - center[1], event.clientX - center[0]);
+}
+
+function cohortCount(value: string, fallback: number): number {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? Math.max(1, Math.min(64, Math.round(parsed))) : fallback;
+}
+
 /** The naturalist layer around the existing select-and-mutate simulation. */
 export class SpecimenLab {
   private readonly bus: CommandBus;
   private readonly canvas: HTMLCanvasElement;
   private readonly camera: () => CameraState;
   private readonly canvasSize: () => readonly [number, number];
+  private readonly stage: HTMLElement;
   private readonly dish: HTMLElement;
+  private readonly orientationHandle: HTMLButtonElement;
+  private readonly cohortPalette: HTMLElement;
+  private readonly cohortPaletteTitle: HTMLElement;
+  private readonly cohortSave: HTMLButtonElement;
+  private readonly cohortCountInput: HTMLInputElement;
   private readonly root: HTMLElement;
   private readonly body: HTMLElement;
   private readonly shelf: HTMLElement;
@@ -121,6 +153,8 @@ export class SpecimenLab {
   private pendingSource: SpecimenSource | null = null;
   private editingId: string | null = null;
   private lastGeneration = -1;
+  private lastHighlightedCohort = -1;
+  private latestStatus: Status | null = null;
   private toastTimer = 0;
 
   constructor(opts: SpecimenLabOptions) {
@@ -135,6 +169,14 @@ export class SpecimenLab {
       this.storage = null;
     }
 
+    // The canvas is clipped into a circle, which also clips its browser hit
+    // region. This transparent workspace owns stage gestures across the pale
+    // area while leaving every real control above it clickable.
+    this.stage = document.createElement('div');
+    this.stage.id = 'fluoddity-stage-input';
+    this.stage.setAttribute('aria-hidden', 'true');
+    document.body.append(this.stage);
+
     this.dish = document.createElement('div');
     this.dish.id = 'fluoddity-petri-dish';
     this.dish.setAttribute('aria-hidden', 'true');
@@ -145,7 +187,81 @@ export class SpecimenLab {
       '<span class="dish-scale">Ø 0.86 · SEALED FIELD</span>';
     document.body.append(this.dish);
 
-    const startsCollapsed = opts.mobile === true;
+    this.orientationHandle = document.createElement('button');
+    this.orientationHandle.id = 'fluoddity-dish-orient';
+    this.orientationHandle.type = 'button';
+    this.orientationHandle.title = 'Drag to rotate the dish';
+    this.orientationHandle.setAttribute('aria-label', 'Drag to rotate the dish');
+    this.orientationHandle.innerHTML = '<span aria-hidden="true"></span>';
+    this.bindOrientationHandle();
+    document.body.append(this.orientationHandle);
+
+    this.cohortPalette = document.createElement('aside');
+    this.cohortPalette.id = 'fluoddity-cohort-actions';
+    this.cohortPalette.hidden = true;
+    this.cohortPalette.setAttribute('aria-label', 'Selected cohort actions');
+    const cohortHead = document.createElement('header');
+    const cohortEyebrow = document.createElement('span');
+    cohortEyebrow.textContent = 'ISOLATED COHORT';
+    this.cohortPaletteTitle = document.createElement('strong');
+    const cohortClose = button('×', 'cohort-action-close');
+    cohortClose.setAttribute('aria-label', 'Cancel cohort selection');
+    cohortClose.addEventListener('click', () => this.bus.dispatch({ kind: 'cancelSelection' }));
+    cohortHead.append(cohortEyebrow, this.cohortPaletteTitle, cohortClose);
+
+    const directActions = document.createElement('div');
+    directActions.className = 'cohort-direct-actions';
+    this.cohortSave = button('Save', 'cohort-save');
+    this.cohortSave.addEventListener('click', () => void this.openSelectedCapture());
+    const mutate = button('Mutate', 'cohort-mutate');
+    mutate.addEventListener('click', () => this.bus.dispatch({ kind: 'confirmSelection' }));
+    directActions.append(this.cohortSave, mutate);
+
+    const cohortPlan = document.createElement('section');
+    const cohortPlanTitle = document.createElement('strong');
+    cohortPlanTitle.textContent = 'NEW COHORT ARRAY';
+    const countLabel = document.createElement('label');
+    countLabel.textContent = 'How many?';
+    const stepper = document.createElement('div');
+    stepper.className = 'cohort-count-stepper';
+    const less = button('−', 'cohort-count-less');
+    less.setAttribute('aria-label', 'Use one fewer cohort');
+    this.cohortCountInput = document.createElement('input');
+    this.cohortCountInput.type = 'number';
+    this.cohortCountInput.min = '1';
+    this.cohortCountInput.max = '64';
+    this.cohortCountInput.step = '1';
+    this.cohortCountInput.inputMode = 'numeric';
+    this.cohortCountInput.setAttribute('aria-label', 'How many cohorts');
+    const more = button('+', 'cohort-count-more');
+    more.setAttribute('aria-label', 'Use one more cohort');
+    const step = (delta: number): void => {
+      const fallback = this.latestStatus?.cohortCount ?? 1;
+      this.cohortCountInput.value = String(
+        cohortCount(this.cohortCountInput.value, fallback) + delta,
+      );
+      this.cohortCountInput.value = String(
+        cohortCount(this.cohortCountInput.value, fallback),
+      );
+    };
+    less.addEventListener('click', () => step(-1));
+    more.addEventListener('click', () => step(1));
+    stepper.append(less, this.cohortCountInput, more);
+    countLabel.append(stepper);
+    const restart = button('Restart dish', 'cohort-restart');
+    restart.addEventListener('click', () => {
+      const fallback = this.latestStatus?.cohortCount ?? 1;
+      const cohorts = cohortCount(this.cohortCountInput.value, fallback);
+      this.cohortCountInput.value = String(cohorts);
+      this.bus.dispatch({ kind: 'cancelSelection' });
+      this.bus.dispatch({ kind: 'setPopulationLayout', cohorts });
+    });
+    cohortPlan.append(cohortPlanTitle, countLabel, restart);
+    this.cohortPalette.append(cohortHead, directActions, cohortPlan);
+    document.body.append(this.cohortPalette);
+    this.bindStageDismissal();
+
+    const startsCollapsed = true;
     this.root = document.createElement('aside');
     this.root.id = 'fluoddity-specimen-lab';
     this.root.classList.toggle('is-collapsed', startsCollapsed);
@@ -157,23 +273,42 @@ export class SpecimenLab {
     heading.className = 'lab-heading';
     heading.innerHTML =
       '<button class="lab-mark lab-toggle" type="button" aria-label="Collapse specimen shelf" aria-expanded="true">' +
-        '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true">' +
-          '<path d="M7 2.5c0 5.2 10 5.2 10 9.5S7 16.3 7 21.5M17 2.5c0 5.2-10 5.2-10 9.5s10 4.3 10 9.5"></path>' +
-          '<path d="M8.1 5.5h7.8M7.3 9h9.4M7.3 15h9.4M8.1 18.5h7.8"></path>' +
-        '</svg>' +
+        SPECIMEN_ICON +
       '</button>' +
       '<span><small>SPECIMEN ARCHIVE / NODE 02</small><strong>Lineage registry</strong></span>';
     this.shelfCount = document.createElement('span');
     this.shelfCount.className = 'lab-count';
     const collapse = heading.querySelector<HTMLButtonElement>('.lab-toggle')!;
-    collapse.title = startsCollapsed ? 'Open specimen shelf' : 'Collapse specimen shelf';
-    collapse.setAttribute('aria-expanded', String(!startsCollapsed));
-    collapse.addEventListener('click', () => {
-      const collapsed = this.root.classList.toggle('is-collapsed');
-      collapse.title = collapsed ? 'Open specimen shelf' : 'Collapse specimen shelf';
-      collapse.setAttribute('aria-label', collapse.title);
+    const launcher = document.createElement('button');
+    launcher.id = 'fluoddity-specimen-launcher';
+    launcher.className = 'workspace-launcher';
+    launcher.type = 'button';
+    launcher.setAttribute('aria-controls', this.root.id);
+    launcher.innerHTML = SPECIMEN_ICON;
+
+    const setCollapsed = (collapsed: boolean): void => {
+      this.root.classList.toggle('is-collapsed', collapsed);
+      const label = collapsed ? 'Open specimen shelf' : 'Collapse specimen shelf';
+      collapse.title = label;
+      collapse.setAttribute('aria-label', label);
       collapse.setAttribute('aria-expanded', String(!collapsed));
+      launcher.title = label;
+      launcher.setAttribute('aria-label', label);
+      launcher.setAttribute('aria-expanded', String(!collapsed));
+      launcher.setAttribute('aria-pressed', String(!collapsed));
+    };
+    collapse.addEventListener('click', () => {
+      const collapsed = !this.root.classList.contains('is-collapsed');
+      setCollapsed(collapsed);
+      if (!collapsed) announceWorkspaceDrawer('specimens');
     });
+    launcher.addEventListener('click', () => {
+      const collapsed = !this.root.classList.contains('is-collapsed');
+      setCollapsed(collapsed);
+      if (!collapsed) announceWorkspaceDrawer('specimens');
+    });
+    closeWhenWorkspaceDrawerChanges('specimens', () => setCollapsed(true));
+    setCollapsed(startsCollapsed);
     header.append(heading, this.shelfCount);
 
     this.body = document.createElement('div');
@@ -201,7 +336,7 @@ export class SpecimenLab {
     this.project = document.createElement('strong');
     this.generation = document.createElement('span');
     status.append(this.project, this.generation);
-    this.captureButton = button('Capture specimen', 'lab-capture');
+    this.captureButton = button('Archive lineage', 'lab-capture');
     this.captureButton.addEventListener('click', () => void this.openCapture());
     liveTop.append(status, this.captureButton);
     this.instruction = document.createElement('p');
@@ -252,7 +387,7 @@ export class SpecimenLab {
         '<strong>Fluoddity-Web</strong><small>Jesse Gelders · MIT License ↗</small>' +
       '</a>';
     this.root.append(header, this.body, attribution, this.toast);
-    document.body.append(this.root);
+    document.body.append(this.root, launcher);
 
     this.dialog = document.createElement('dialog');
     this.dialog.className = 'specimen-dialog';
@@ -310,8 +445,29 @@ export class SpecimenLab {
     this.renderShelf();
   }
 
+  /**
+   * Blank stage space is the natural escape target on both touch and desktop.
+   * Keep the dish itself interactive: only points outside its circular rim
+   * dismiss drawers and the selected-cohort palette.
+   */
+  private bindStageDismissal(): void {
+    this.stage.addEventListener('pointerdown', (event) => {
+      if (event.button !== 0) return;
+      const rect = this.dish.getBoundingClientRect();
+      const radius = Math.min(rect.width, rect.height) / 2;
+      const dx = event.clientX - (rect.left + rect.width / 2);
+      const dy = event.clientY - (rect.top + rect.height / 2);
+      if (dx * dx + dy * dy <= radius * radius) return;
+
+      dismissWorkspaceDrawers();
+      if (!this.cohortPalette.hidden) this.bus.dispatch({ kind: 'cancelSelection' });
+    });
+  }
+
   refresh(status: Status): void {
+    this.latestStatus = status;
     this.syncDishView();
+    this.syncCohortPalette(status);
     this.project.textContent = status.projectName;
     this.generation.textContent =
       status.lineageGeneration === 0
@@ -362,19 +518,150 @@ export class SpecimenLab {
     const radius = 0.43 * Math.min(rect.width, rect.height) * camera.zoom;
 
     this.canvas.style.clipPath = `circle(${radius}px at ${localX}px ${localY}px)`;
+    this.stage.dataset['tool'] = this.canvas.dataset['tool'] ?? 'select';
     this.dish.style.left = `${rect.left + localX}px`;
     this.dish.style.top = `${rect.top + localY}px`;
     this.dish.style.width = `${radius * 2}px`;
     this.dish.style.setProperty('--lab-dish-rotation', `${-camera.rotation}rad`);
+
+    const bearing = -camera.rotation - Math.PI / 2;
+    const reach = radius + 14;
+    this.orientationHandle.style.left = `${rect.left + localX + Math.cos(bearing) * reach}px`;
+    this.orientationHandle.style.top = `${rect.top + localY + Math.sin(bearing) * reach}px`;
+    this.orientationHandle.setAttribute(
+      'aria-label',
+      `Drag to rotate the dish. Current orientation ${Math.round((camera.rotation * 180) / Math.PI)} degrees`,
+    );
   }
 
-  private async openCapture(): Promise<void> {
-    const snapshot = this.bus.specimenSnapshot();
+  private bindOrientationHandle(): void {
+    let pointerId: number | null = null;
+    let center: readonly [number, number] = [0, 0];
+    let startPointerAngle = 0;
+    let startRotation = 0;
+
+    const finish = (event: PointerEvent): void => {
+      if (event.pointerId !== pointerId) return;
+      pointerId = null;
+      this.orientationHandle.classList.remove('is-dragging');
+    };
+
+    this.orientationHandle.addEventListener('pointerdown', (event) => {
+      if (event.button !== 0 || pointerId !== null) return;
+      event.preventDefault();
+      event.stopPropagation();
+      const dishRect = this.dish.getBoundingClientRect();
+      center = [dishRect.left + dishRect.width / 2, dishRect.top + dishRect.height / 2];
+      startPointerAngle = pointerAngle(event, center);
+      startRotation = this.camera().rotation;
+      pointerId = event.pointerId;
+      this.orientationHandle.classList.add('is-dragging');
+      this.orientationHandle.setPointerCapture(event.pointerId);
+    });
+    this.orientationHandle.addEventListener('pointermove', (event) => {
+      if (event.pointerId !== pointerId) return;
+      const next = rotationFromBearingDrag(
+        startRotation,
+        startPointerAngle,
+        pointerAngle(event, center),
+      );
+      setDishRotation(this.camera(), next);
+    });
+    this.orientationHandle.addEventListener('pointerup', finish);
+    this.orientationHandle.addEventListener('pointercancel', finish);
+    this.orientationHandle.addEventListener('keydown', (event) => {
+      const camera = this.camera();
+      if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
+        event.preventDefault();
+        rotateDishBy(camera, event.key === 'ArrowLeft' ? Math.PI / 36 : -Math.PI / 36);
+      } else if (event.key === 'Home') {
+        event.preventDefault();
+        setDishRotation(camera, 0);
+      }
+    });
+  }
+
+  private syncCohortPalette(status: Status): void {
+    const shown = status.mouseMode === 'select' && status.highlightedCohort >= 0;
+    this.cohortPalette.hidden = !shown;
+    if (!shown) {
+      this.lastHighlightedCohort = -1;
+      return;
+    }
+
+    this.cohortPaletteTitle.textContent = `Cohort ${status.highlightedCohort + 1}`;
+    if (this.lastHighlightedCohort < 0) {
+      this.cohortCountInput.value = String(status.cohortCount);
+    }
+    this.lastHighlightedCohort = status.highlightedCohort;
+
+    const exactSelection =
+      status.selected?.cohort === status.highlightedCohort && status.selected.rule !== null;
+    this.cohortSave.disabled = !exactSelection;
+    this.cohortSave.title = exactSelection
+      ? 'Archive this selected cohort without replacing the dish'
+      : 'Click this cohort in the dish before saving it';
+
+    const canvasRect = this.canvas.getBoundingClientRect();
+    const dishRect = this.dish.getBoundingClientRect();
+    let anchorY = dishRect.top + Math.min(92, dishRect.height * 0.25);
+    if (status.selected !== null && status.selected.index >= 0) {
+      const ndc = worldToScreenNdc(
+        status.selected.pos,
+        this.canvasSize(),
+        [this.canvas.width, this.canvas.height],
+        this.camera().pan,
+        this.camera().zoom,
+        this.camera().rotation,
+      );
+      anchorY = canvasRect.top + ((1 - ndc[1]) * canvasRect.height) / 2 - 38;
+    }
+
+    const width = Math.max(236, this.cohortPalette.offsetWidth);
+    const height = Math.max(220, this.cohortPalette.offsetHeight);
+    const roomRight = window.innerWidth - dishRect.right;
+    const roomLeft = dishRect.left;
+    let left: number;
+    if (roomRight >= width + 20) left = dishRect.right + 12;
+    else if (roomLeft >= width + 20) left = dishRect.left - width - 12;
+    else left = window.innerWidth - width - 10;
+    const launcherClearance = window.innerWidth <= 900 ? 150 : 82;
+    const top = Math.max(10, Math.min(anchorY, window.innerHeight - height - launcherClearance));
+    this.cohortPalette.style.left = `${Math.max(10, left)}px`;
+    this.cohortPalette.style.top = `${top}px`;
+  }
+
+  private async openSelectedCapture(): Promise<void> {
+    const status = this.latestStatus;
+    const selected = status?.selected;
+    if (
+      status === null ||
+      selected == null ||
+      selected.rule === null ||
+      selected.cohort !== status.highlightedCohort
+    ) {
+      return;
+    }
+    await this.openCapture(selected.rule, status.highlightedCohort);
+  }
+
+  private async openCapture(
+    selectedRule: readonly number[] | null = null,
+    selectedCohort = -1,
+  ): Promise<void> {
+    const live = this.bus.specimenSnapshot();
+    const snapshot =
+      selectedRule === null
+        ? live
+        : specimenSourceWithRule(
+            { ...live, generation: live.generation + 1 },
+            selectedRule,
+          );
     this.captureButton.disabled = true;
     this.captureButton.textContent = 'Capturing…';
     const thumbnail = await captureThumbnail(this.canvas);
     this.captureButton.disabled = false;
-    this.captureButton.textContent = 'Capture specimen';
+    this.captureButton.textContent = 'Archive lineage';
     this.pendingSource = {
       ...snapshot,
       ...(thumbnail === undefined ? {} : { thumbnail }),
@@ -382,9 +669,15 @@ export class SpecimenLab {
     this.editingId = null;
     this.dialogTitle.textContent = 'Archive this lineage';
     const base = snapshot.projectName.replace(/^Specimen arena\s*[·-]?\s*/i, '').trim() || 'Specimen';
-    this.nameInput.value = `${base} ${String(this.specimens.length + 1).padStart(2, '0')}`;
+    this.nameInput.value =
+      selectedCohort >= 0
+        ? `${base} · cohort ${selectedCohort + 1}`
+        : `${base} ${String(this.specimens.length + 1).padStart(2, '0')}`;
     this.notesInput.value = '';
-    this.dialogMeta.textContent = `Generation ${snapshot.generation} · live genome snapshot`;
+    this.dialogMeta.textContent =
+      selectedCohort >= 0
+        ? `Generation ${snapshot.generation} · selected cohort ${selectedCohort + 1}`
+        : `Generation ${snapshot.generation} · live genome snapshot`;
     this.applyDialogPreview(this.pendingSource.thumbnail);
     this.dialog.showModal();
     this.nameInput.select();
