@@ -121,6 +121,7 @@ export function bindTouch(opts: TouchBindingOptions): {
   const { surface, tracker, camera, canvasSize, mouseMode, dragButton, onLongPress } =
     opts;
   const canvas = surface.canvas;
+  const stage = document.getElementById('fluoddity-stage-input') ?? canvas;
 
   const gesture = new TouchGesture();
   const pinch = new PinchTracker();
@@ -283,7 +284,7 @@ export function bindTouch(opts: TouchBindingOptions): {
     // cancel a zoom in progress.
     if (touches.size > 2) return;
 
-    canvas.setPointerCapture(event.pointerId);
+    stage.setPointerCapture(event.pointerId);
     beginOneFinger(at, event.timeStamp);
   };
 
@@ -374,14 +375,14 @@ export function bindTouch(opts: TouchBindingOptions): {
     releaseHeld();
   };
 
-  canvas.addEventListener('pointerdown', onPointerDown);
-  // ON THE CANVAS, not the window, unlike the mouse path -- `setPointerCapture`
+  stage.addEventListener('pointerdown', onPointerDown);
+  // ON THE STAGE, not the window, unlike the mouse path -- `setPointerCapture`
   // above already routes a moving finger back here even when it leaves the
   // element, and a window listener would additionally see touches that began on
   // the panel and drag across the canvas.
-  canvas.addEventListener('pointermove', onPointerMove);
-  canvas.addEventListener('pointerup', onPointerUp);
-  canvas.addEventListener('pointercancel', onPointerCancel);
+  stage.addEventListener('pointermove', onPointerMove);
+  stage.addEventListener('pointerup', onPointerUp);
+  stage.addEventListener('pointercancel', onPointerCancel);
 
   return {
     pump(now: number): void {
@@ -392,10 +393,10 @@ export function bindTouch(opts: TouchBindingOptions): {
       if (gesture.longPressDue(now)) onLongPress();
     },
     dispose(): void {
-      canvas.removeEventListener('pointerdown', onPointerDown);
-      canvas.removeEventListener('pointermove', onPointerMove);
-      canvas.removeEventListener('pointerup', onPointerUp);
-      canvas.removeEventListener('pointercancel', onPointerCancel);
+      stage.removeEventListener('pointerdown', onPointerDown);
+      stage.removeEventListener('pointermove', onPointerMove);
+      stage.removeEventListener('pointerup', onPointerUp);
+      stage.removeEventListener('pointercancel', onPointerCancel);
     },
   };
 }

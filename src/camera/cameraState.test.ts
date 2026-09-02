@@ -26,6 +26,7 @@ import {
   type Vec2,
   type WindowSize,
   screenToWorld,
+  worldToScreenNdc,
   worldHalfExtent,
 } from '../particleSystem/coords.ts';
 import { PARITY, assertClose, assertCloseVec2, pair } from '../testing/parity.ts';
@@ -299,6 +300,39 @@ test('dish rotation normalizes, nudges, and rejects non-finite values', () => {
   assertClose(camera.rotation, -Math.PI + ROTATION_STEP, 'rotation nudge');
   camera.setRotation(Number.NaN);
   assertClose(camera.rotation, -Math.PI + ROTATION_STEP, 'NaN is refused');
+});
+
+test('dish-centred rotation preserves the world origin after panning', () => {
+  const camera = new CameraState({ pan: [0.62, -0.37], zoom: 2.4, rotation: 0.35 });
+  const before = worldToScreenNdc(
+    [0, 0],
+    CANVAS,
+    WINDOW,
+    camera.pan,
+    camera.zoom,
+    camera.rotation,
+  );
+
+  camera.setRotationAroundWorldOrigin(-1.1);
+
+  const after = worldToScreenNdc(
+    [0, 0],
+    CANVAS,
+    WINDOW,
+    camera.pan,
+    camera.zoom,
+    camera.rotation,
+  );
+  assertCloseVec2(after, before, 'the dish centre must not precess while rotating');
+});
+
+test('dish-centred rotation rejects non-finite values without changing pan', () => {
+  const camera = new CameraState({ pan: [0.4, -0.2], rotation: 0.5 });
+  const beforePan = camera.pan;
+  camera.setRotationAroundWorldOrigin(Number.NaN);
+  camera.rotateAroundWorldOriginBy(Number.POSITIVE_INFINITY);
+  assert.deepEqual(camera.pan, beforePan);
+  assertClose(camera.rotation, 0.5, 'invalid rotation is refused');
 });
 
 // ---------------------------------------------------------------------------

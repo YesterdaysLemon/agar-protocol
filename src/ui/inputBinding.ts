@@ -118,19 +118,21 @@ export function bindInput(opts: InputBindingOptions): {
   } =
     opts;
   const canvas = surface.canvas;
+  const stage = document.getElementById('fluoddity-stage-input') ?? canvas;
   const tracker = new InputTracker();
   const table = opts.hotkeys ?? DEFAULT_HOTKEYS;
 
   /**
    * Whether an event belongs to the UI rather than the canvas.
    *
-   * The canvas is the only surface the simulation owns, so anything that is not
-   * on it is the UI's -- which covers the Tweakpane panel without this file
+   * The full stage is the surface the simulation owns. It may be the canvas
+   * itself, or the transparent workspace over the pale area around a clipped
+   * dish. Anything that is not on it is the UI's -- which covers the Tweakpane panel without this file
    * having to know the panel exists. (`#thin-panel` is `position: fixed`,
    * z-index 20; the `?debug` overlay is `pointer-events: none` and never
    * becomes a target at all.)
    */
-  const capturedByUi = (event: Event): boolean => event.target !== canvas;
+  const capturedByUi = (event: Event): boolean => event.target !== stage;
 
   /**
    * Whether this pointer belongs to the touch path instead of this one.
@@ -187,7 +189,7 @@ export function bindInput(opts: InputBindingOptions): {
       // canvas, which is the DOM's version of "a drag belongs to whoever
       // received the press". The tracker enforces that too; this makes the
       // browser cooperate rather than relying on the window listeners alone.
-      canvas.setPointerCapture(event.pointerId);
+      stage.setPointerCapture(event.pointerId);
       if (event.button === MIDDLE_BUTTON) event.preventDefault();
     }
     // `shiftKey` from the pointer event itself: Shift+Right-click is redo, and
@@ -324,10 +326,10 @@ export function bindInput(opts: InputBindingOptions): {
     tracker.onFocusLost();
   };
 
-  canvas.addEventListener('pointerdown', onPointerDown);
-  canvas.addEventListener('wheel', onWheel, { passive: false });
-  canvas.addEventListener('contextmenu', onContextMenu);
-  canvas.addEventListener('auxclick', onAuxClick);
+  stage.addEventListener('pointerdown', onPointerDown);
+  stage.addEventListener('wheel', onWheel, { passive: false });
+  stage.addEventListener('contextmenu', onContextMenu);
+  stage.addEventListener('auxclick', onAuxClick);
   window.addEventListener('pointerup', onPointerUp);
   window.addEventListener('pointercancel', onPointerCancel);
   window.addEventListener('pointermove', onPointerMove);
@@ -338,10 +340,10 @@ export function bindInput(opts: InputBindingOptions): {
   return {
     tracker,
     dispose(): void {
-      canvas.removeEventListener('pointerdown', onPointerDown);
-      canvas.removeEventListener('wheel', onWheel);
-      canvas.removeEventListener('contextmenu', onContextMenu);
-      canvas.removeEventListener('auxclick', onAuxClick);
+      stage.removeEventListener('pointerdown', onPointerDown);
+      stage.removeEventListener('wheel', onWheel);
+      stage.removeEventListener('contextmenu', onContextMenu);
+      stage.removeEventListener('auxclick', onAuxClick);
       window.removeEventListener('pointerup', onPointerUp);
       window.removeEventListener('pointercancel', onPointerCancel);
       window.removeEventListener('pointermove', onPointerMove);

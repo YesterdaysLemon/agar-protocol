@@ -17,6 +17,7 @@ import {
   loadSpecimens,
   ruleFingerprint,
   saveSpecimens,
+  specimenSourceWithRule,
   type Specimen,
 } from './specimens.ts';
 
@@ -68,6 +69,20 @@ test('a specimen fingerprint follows the exact uploaded f32 bytes', () => {
   // Signed zero is visually the same JavaScript number but a different f32 bit
   // pattern. The fingerprint is deliberately about the bytes, so it notices.
   assert.notEqual(ruleFingerprint(rule), ruleFingerprint([1 / 3, -0, Math.PI, 1e-30]));
+});
+
+test('a highlighted cohort can be archived without mutating the live parent', () => {
+  const parent = config(0);
+  const childRule = parent.rule.map((value, index) => value + index / 1000);
+  const source = specimenSourceWithRule(
+    { projectName: 'Corally', generation: 4, document: toDocument([parent], world) },
+    childRule,
+  );
+  const captured = createSpecimen(source, { name: 'Selected cohort', notes: '' }, {
+    id: 'selected', capturedAt: '2026-09-02T12:00:00.000Z',
+  });
+  assert.equal(captured.fingerprint, ruleFingerprint(childRule));
+  assert.notEqual(captured.fingerprint, ruleFingerprint(parent.rule));
 });
 
 test('capture canonicalizes one config and editing cannot change its fingerprint', () => {

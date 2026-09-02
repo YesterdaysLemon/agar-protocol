@@ -1219,3 +1219,360 @@ html.fluoddity-console:not(.fluoddity-touch) #fluoddity-panel-right {
   .lab-arena { position:static; }
   .lab-shelf { grid-template-columns:repeat(2,minmax(0,1fr)); }
 }
+
+/* -------------------------------------------------------------------------
+   2026 direct-manipulation pass: one stage, one launcher dock
+   ------------------------------------------------------------------------- */
+
+/* The canvas remains visually clipped, while this hit plane makes the whole
+   pale work surface pan/zoomable. Real controls all sit above z-index 3. */
+#fluoddity-stage-input {
+  position:fixed;
+  inset:0;
+  z-index:3;
+  touch-action:none;
+  cursor:grab;
+}
+#fluoddity-stage-input:active { cursor:grabbing; }
+#fluoddity-stage-input[data-tool='draw'],
+#fluoddity-stage-input[data-tool='shove'] { cursor:crosshair; }
+
+/* The visible bearing is now a real, forgiving drag target. */
+#fluoddity-dish-orient {
+  position:fixed;
+  z-index:5;
+  display:grid;
+  width:42px;
+  height:42px;
+  box-sizing:border-box;
+  place-items:center;
+  padding:0;
+  border:0;
+  background:transparent;
+  transform:translate(-50%,-50%);
+  touch-action:none;
+  cursor:grab;
+}
+#fluoddity-dish-orient > span {
+  display:block;
+  width:12px;
+  height:12px;
+  box-sizing:border-box;
+  border:2px solid #526b78;
+  background:#f8f9f8;
+  box-shadow:0 0 0 3px rgba(248,249,248,.78),0 2px 6px rgba(31,38,39,.25);
+  transform:rotate(45deg);
+}
+#fluoddity-dish-orient:hover > span,
+#fluoddity-dish-orient:focus-visible > span,
+#fluoddity-dish-orient.is-dragging > span { background:#dce4e7;border-color:#324d5a; }
+#fluoddity-dish-orient:focus-visible { outline:1px solid #526b78;outline-offset:-4px; }
+#fluoddity-dish-orient.is-dragging { cursor:grabbing; }
+
+/* A compact cohort palette appears beside the vessel only while one is lit. */
+#fluoddity-cohort-actions {
+  position:fixed;
+  z-index:13;
+  width:246px;
+  box-sizing:border-box;
+  color:var(--lab-ink);
+  border:1px solid #8f9996;
+  border-radius:1px;
+  background:#f8f9f8;
+  box-shadow:8px 10px 26px rgba(31,38,39,.16),inset 0 1px #fff;
+  font-family:system-ui,-apple-system,"Segoe UI",sans-serif;
+}
+#fluoddity-cohort-actions[hidden] { display:none; }
+#fluoddity-cohort-actions > header {
+  position:relative;
+  display:grid;
+  gap:3px;
+  padding:11px 42px 10px 12px;
+  border-bottom:1px solid var(--lab-line-strong);
+  background:linear-gradient(90deg,rgba(82,107,120,.07) 0 5px,transparent 5px),#f5f7f6;
+}
+#fluoddity-cohort-actions > header > span,
+#fluoddity-cohort-actions > section > strong {
+  color:#6b7472;
+  font:750 9px/1 ui-monospace,SFMono-Regular,Consolas,monospace;
+  letter-spacing:.11em;
+}
+#fluoddity-cohort-actions > header > strong { font-size:17px;font-weight:680; }
+.cohort-action-close {
+  position:absolute;
+  top:8px;
+  right:8px;
+  width:32px;
+  height:32px;
+  padding:0;
+  color:#5d6664;
+  border:1px solid #c0c6c3;
+  border-radius:0;
+  background:#eef1ef;
+  font:500 20px/1 system-ui,sans-serif;
+}
+.cohort-direct-actions { display:grid;grid-template-columns:1fr 1fr;gap:6px;padding:10px 12px; }
+.cohort-direct-actions button,
+.cohort-restart,
+.cohort-count-stepper button,
+.cohort-count-stepper input {
+  min-height:40px;
+  box-sizing:border-box;
+  border:1px solid #aeb6b3;
+  border-radius:0;
+  background:#eef1ef;
+  color:#354044;
+  font:700 11px/1 system-ui,-apple-system,"Segoe UI",sans-serif;
+}
+.cohort-mutate,.cohort-restart { color:#fff !important;border-color:#415863 !important;background:#526b78 !important; }
+.cohort-direct-actions button:hover:not(:disabled),
+.cohort-restart:hover,
+.cohort-count-stepper button:hover,
+.cohort-action-close:hover { border-color:#657b84;background:#fff;color:#26363d; }
+.cohort-save:disabled { opacity:.42;cursor:not-allowed; }
+#fluoddity-cohort-actions > section {
+  display:grid;
+  gap:8px;
+  padding:11px 12px 12px;
+  border-top:1px solid #d5d9d7;
+  background:#f1f3f2;
+}
+#fluoddity-cohort-actions label {
+  display:grid;
+  grid-template-columns:76px 1fr;
+  align-items:center;
+  gap:8px;
+  color:#5c6563;
+  font-size:11px;
+  font-weight:650;
+}
+.cohort-count-stepper { display:grid;grid-template-columns:38px minmax(44px,1fr) 38px; }
+.cohort-count-stepper > * + * { border-left:0; }
+.cohort-count-stepper input { width:100%;padding:0 3px;text-align:center;background:#fff; }
+.cohort-count-stepper input::-webkit-inner-spin-button { display:none; }
+.cohort-restart { width:100%; }
+
+/* The symbols are the marks now; the old crosshair fill read as a stray plus. */
+.lab-mark,
+.culture-console-mark { border-radius:0;background:#edf1ef; }
+.lab-mark svg { transform:none; }
+.lab-mark svg,
+.culture-console-mark svg { width:24px;height:24px;stroke-width:1.55; }
+#fluoddity-control-rack #fluoddity-menubar [data-menu]::after { content:none;display:none; }
+
+/* All three launchers share one bottom-right dock. Open drawers terminate above
+   the dock and size to their content until the viewport cap is reached. */
+#fluoddity-control-rack {
+  top:auto;
+  right:16px;
+  bottom:80px;
+  left:auto;
+  max-height:calc(100dvh - 112px);
+  height:auto;
+  border-radius:1px;
+}
+#fluoddity-control-rack.is-collapsed {
+  top:auto;
+  right:144px;
+  bottom:16px;
+  left:auto;
+}
+#fluoddity-specimen-lab {
+  top:auto !important;
+  right:16px !important;
+  bottom:80px !important;
+  left:auto !important;
+  height:auto;
+  max-height:calc(100dvh - 112px) !important;
+  border-radius:1px;
+}
+#fluoddity-specimen-lab.is-collapsed {
+  top:auto !important;
+  right:16px !important;
+  bottom:16px !important;
+  left:auto !important;
+}
+#fluoddity-settings-launcher {
+  top:auto;
+  right:80px;
+  bottom:16px;
+  border-radius:0 !important;
+}
+#fluoddity-settings-launcher[aria-pressed='true'] {
+  background:#dce4e7 !important;
+  box-shadow:inset 0 -3px #526b78,0 7px 18px rgba(31,38,39,.12) !important;
+}
+html.fluoddity-console:not(.fluoddity-touch) #fluoddity-panel-right {
+  top:auto !important;
+  right:16px !important;
+  bottom:80px !important;
+  width:min(440px,calc(100vw - 32px)) !important;
+  max-height:calc(100dvh - 112px) !important;
+  border-radius:1px;
+}
+#fluoddity-panel-left .tp-dfwv,
+#fluoddity-panel-right .tp-dfwv,
+dialog[id^='fluoddity-'] { border-radius:1px !important; }
+
+/* Keep every legacy label readable inside the narrower procedure rack. */
+.culture-orientation { margin-top:0; }
+.culture-orientation-controls {
+  grid-template-columns:44px minmax(82px,1fr) 44px 48px;
+  gap:5px;
+  padding:4px 10px 10px;
+}
+.culture-orientation-controls button { height:38px;font-size:10px; }
+.culture-orientation-controls input[type='range'] { min-width:0; }
+.culture-orientation-controls output {
+  grid-column:1 / -1;
+  min-height:18px;
+  padding:3px 5px;
+  border-left:3px solid #526b78;
+  background:#eef1ef;
+  text-align:left;
+  font-size:11px;
+}
+.culture-orientation-reset { grid-column:auto; }
+.culture-context span { overflow-wrap:anywhere; }
+
+@media (max-width:900px) {
+  #fluoddity-control-rack.is-mobile:not(.is-collapsed),
+  #fluoddity-specimen-lab:not(.is-collapsed) {
+    top:auto !important;
+    right:8px !important;
+    bottom:calc(var(--fluoddity-bar-height,72px) + 72px) !important;
+    left:8px !important;
+    max-height:calc(100dvh - var(--fluoddity-bar-height,72px) - 88px) !important;
+    height:auto;
+    border-radius:1px;
+  }
+  #fluoddity-control-rack.is-mobile.is-collapsed {
+    top:auto;
+    right:136px;
+    bottom:calc(var(--fluoddity-bar-height,72px) + 8px);
+    left:auto;
+  }
+  #fluoddity-specimen-lab.is-collapsed {
+    top:auto !important;
+    right:8px !important;
+    bottom:calc(var(--fluoddity-bar-height,72px) + 8px) !important;
+  }
+  #fluoddity-settings-launcher {
+    top:auto;
+    right:72px;
+    bottom:calc(var(--fluoddity-bar-height,72px) + 8px);
+  }
+  #fluoddity-panel-right {
+    top:auto !important;
+    right:8px !important;
+    bottom:calc(var(--fluoddity-bar-height,72px) + 72px) !important;
+    left:8px !important;
+    width:auto !important;
+    max-height:calc(100dvh - var(--fluoddity-bar-height,72px) - 88px) !important;
+    height:auto;
+  }
+  #fluoddity-cohort-actions { width:min(272px,calc(100vw - 20px)); }
+  .cohort-direct-actions button,
+  .cohort-restart,
+  .cohort-count-stepper button,
+  .cohort-count-stepper input { min-height:44px;font-size:13px; }
+  .cohort-action-close { width:36px;height:36px; }
+  #fluoddity-dish-orient { width:48px;height:48px; }
+}
+
+/* Culture and Collection now use persistent launchers, like Settings. Opening
+   a drawer no longer pulls its square out of the dock. */
+.workspace-launcher {
+  position:fixed;
+  z-index:35;
+  bottom:16px;
+  display:grid;
+  width:56px;
+  height:56px;
+  box-sizing:border-box;
+  place-items:center;
+  padding:0;
+  color:var(--lab-accent);
+  border:1px solid #8f9996;
+  border-radius:0;
+  background:#f5f7f6;
+  box-shadow:0 7px 18px rgba(31,38,39,.12),inset 0 1px #fff;
+  cursor:pointer;
+}
+.workspace-launcher svg {
+  width:24px;
+  height:24px;
+  stroke:currentColor;
+  stroke-width:1.55;
+  stroke-linecap:round;
+  stroke-linejoin:round;
+}
+#fluoddity-culture-launcher { right:144px; }
+#fluoddity-specimen-launcher { right:16px; }
+#fluoddity-control-rack.is-collapsed,
+#fluoddity-specimen-lab.is-collapsed { display:none !important; }
+
+/* Launcher state is deliberately crisp and shared. The former width/bottom
+   tweens made each cabinet appear to wobble out of a different corner. */
+#fluoddity-control-rack,
+#fluoddity-specimen-lab,
+#fluoddity-panel-right { transition:none !important; }
+
+#fluoddity-culture-launcher,
+#fluoddity-specimen-launcher,
+#fluoddity-settings-launcher,
+.lab-mark,
+.culture-console-mark {
+  transition:border-color 100ms linear,background-color 100ms linear,box-shadow 100ms linear !important;
+}
+
+#fluoddity-culture-launcher:hover,
+#fluoddity-culture-launcher:focus-visible,
+#fluoddity-specimen-launcher:hover,
+#fluoddity-specimen-launcher:focus-visible,
+#fluoddity-settings-launcher:hover,
+#fluoddity-settings-launcher:focus-visible {
+  border-color:#526b78 !important;
+  background:#fff !important;
+  box-shadow:0 0 0 2px rgba(82,107,120,.13),0 7px 18px rgba(31,38,39,.12) !important;
+}
+
+#fluoddity-control-rack:not(.is-collapsed) .culture-console-mark,
+#fluoddity-specimen-lab:not(.is-collapsed) .lab-mark,
+#fluoddity-culture-launcher[aria-pressed='true'],
+#fluoddity-specimen-launcher[aria-pressed='true'],
+#fluoddity-settings-launcher[aria-pressed='true'] {
+  border-color:#526b78 !important;
+  background:#dce4e7 !important;
+  box-shadow:inset 0 -3px #526b78 !important;
+}
+
+#fluoddity-stage-input,
+#fluoddity-petri-dish,
+#fluoddity-dish-orient,
+#fluoddity-cohort-actions,
+#fluoddity-control-rack,
+#fluoddity-specimen-lab,
+#fluoddity-culture-launcher,
+#fluoddity-specimen-launcher,
+#fluoddity-settings-launcher { user-select:none; }
+
+#fluoddity-cohort-actions input,
+#fluoddity-control-rack input,
+#fluoddity-specimen-lab input,
+#fluoddity-specimen-lab textarea { user-select:text; }
+
+/* Tweakpane's root still carried its own rounded shell inside our angular
+   Settings host. Flatten that inner cabinet so all three drawers agree. */
+#fluoddity-panel-right .tp-rotv,
+#fluoddity-panel-right .tp-rotv_b { border-radius:0 !important; }
+#fluoddity-panel-right > .tp-rotv {
+  border:1px solid #aeb5b2;
+  box-shadow:0 8px 24px rgba(31,38,39,.14),inset 0 1px #fff;
+}
+
+@media (max-width:900px) {
+  .workspace-launcher { bottom:calc(var(--fluoddity-bar-height,72px) + 8px); }
+  #fluoddity-culture-launcher { right:136px; }
+  #fluoddity-specimen-launcher { right:8px; }
+}

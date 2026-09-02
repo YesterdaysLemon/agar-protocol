@@ -12,8 +12,9 @@
  *
  * ## What it checks
  *
- *   PASS 0  DIRECT NAVIGATION. Primary-drag pans in Observe, the wheel zooms,
- *           and middle-drag pans while a drawing tool is active.
+ *   PASS 0  DIRECT NAVIGATION. The three launchers share one dock, the pale
+ *           stage pans/zooms outside the clipped dish, the rim bearing rotates,
+ *           the cohort palette appears, and middle-drag pans in another tool.
  *
  *   PASS 1  THE GATED LATCH. Press a gated slider, drag it to its base value,
  *           and assert it is STILL VISIBLE while the button is down -- then
@@ -380,34 +381,240 @@ await evaluate(`window.__fluoddity.dispatch({ kind: 'setMouseMode', mode: 'selec
 await sleep(200);
 const navStart = await evaluate(`(() => {
   const canvas = document.getElementById('app');
+  const stage = document.getElementById('fluoddity-stage-input');
+  const dish = document.getElementById('fluoddity-petri-dish');
   const r = canvas.getBoundingClientRect();
+  const s = stage?.getBoundingClientRect();
+  const d = dish?.getBoundingClientRect();
   const camera = window.__fluoddity.cameraState;
+  let x = r.x + r.width - 36;
+  let y = r.y + r.height / 2;
+  if (d) {
+    const right = d.right + 48;
+    const left = d.left - 48;
+    x = right < window.innerWidth - 20 ? right : left > 20 ? left : x;
+    y = d.top + d.height / 2;
+  }
   return { x: r.x + r.width / 2, y: r.y + r.height / 2,
+    whiteX: x, whiteY: y, viewport: { width:window.innerWidth,height:window.innerHeight },
+    stage: s ? { width:s.width,height:s.height } : null,
     pan: [...camera.pan], zoom: camera.zoom };
 })()`);
 
-await mouse('mousePressed', navStart.x, navStart.y);
-await mouse('mouseMoved', navStart.x + 84, navStart.y + 42);
-await mouse('mouseReleased', navStart.x + 84, navStart.y + 42, 0);
+if (
+  navStart.stage?.width === navStart.viewport.width &&
+  navStart.stage?.height === navStart.viewport.height
+) {
+  pass('the gesture stage covers the full viewport beyond the clipped dish');
+} else {
+  fail(`gesture stage geometry is ${JSON.stringify(navStart.stage)}, viewport ${JSON.stringify(navStart.viewport)}`);
+}
+
+const dock = await evaluate(`(() => {
+  const nodes = [
+    document.getElementById('fluoddity-culture-launcher'),
+    document.getElementById('fluoddity-settings-launcher'),
+    document.getElementById('fluoddity-specimen-launcher'),
+  ];
+  if (nodes.some((node) => !node)) return null;
+  return nodes.map((node) => {
+    const r = node.getBoundingClientRect();
+    return { x:r.x,y:r.y,width:r.width,height:r.height,bottom:r.bottom };
+  });
+})()`);
+if (
+  dock !== null &&
+  dock.every((r) => Math.abs(r.width - 56) < 1 && Math.abs(r.height - 56) < 1) &&
+  Math.max(...dock.map((r) => r.bottom)) - Math.min(...dock.map((r) => r.bottom)) < 1 &&
+  dock[0].x < dock[1].x && dock[1].x < dock[2].x
+) {
+  pass('Culture, Settings, and Collection are three aligned bottom-right squares');
+} else {
+  fail(`launcher dock geometry is ${JSON.stringify(dock)}`);
+}
+
+const dismissX = 18;
+const dismissY = navStart.viewport.height / 2;
+const dismissChecks = [];
+for (const [id, surface] of [
+  ['fluoddity-culture-launcher', 'culture'],
+  ['fluoddity-settings-launcher', 'settings'],
+  ['fluoddity-specimen-launcher', 'specimens'],
+]) {
+  await evaluate(`(() => {
+    const node = document.getElementById('${id}');
+    const trigger = node?.querySelector('button') ?? node;
+    trigger?.click();
+  })()`);
+  await sleep(200);
+  await mouse('mousePressed', dismissX, dismissY);
+  await mouse('mouseReleased', dismissX, dismissY, 0);
+  await sleep(200);
+  dismissChecks.push(await evaluate(`(() => {
+    const culture = document.getElementById('fluoddity-control-rack');
+    const specimens = document.getElementById('fluoddity-specimen-lab');
+    const settings = document.getElementById('fluoddity-panel-right');
+    return {
+      surface:'${surface}',
+      closed:culture?.classList.contains('is-collapsed') === true &&
+        specimens?.classList.contains('is-collapsed') === true &&
+        (!settings || getComputedStyle(settings).display === 'none'),
+    };
+  })()`));
+}
+if (dismissChecks.every((result) => result.closed)) {
+  pass('a blank-stage tap consistently dismisses Culture, Settings, and Collection');
+} else {
+  fail(`blank-stage dismissal results are ${JSON.stringify(dismissChecks)}`);
+}
+
+const bearingStart = await evaluate(`(() => {
+  const handle = document.getElementById('fluoddity-dish-orient');
+  const dish = document.getElementById('fluoddity-petri-dish');
+  if (!handle || !dish) return null;
+  const h = handle.getBoundingClientRect();
+  const d = dish.getBoundingClientRect();
+  return { x:h.x+h.width/2,y:h.y+h.height/2,cx:d.x+d.width/2,cy:d.y+d.height/2,
+    rotation:window.__fluoddity.cameraState.rotation };
+})()`);
+if (bearingStart === null) die('The dish orientation handle is missing.');
+const bearingAngle = Math.atan2(
+  bearingStart.y - bearingStart.cy,
+  bearingStart.x - bearingStart.cx,
+);
+const bearingRadius = Math.hypot(
+  bearingStart.x - bearingStart.cx,
+  bearingStart.y - bearingStart.cy,
+);
+const bearingTarget = bearingAngle + 0.42;
+await mouse('mousePressed', bearingStart.x, bearingStart.y);
+await mouse(
+  'mouseMoved',
+  bearingStart.cx + Math.cos(bearingTarget) * bearingRadius,
+  bearingStart.cy + Math.sin(bearingTarget) * bearingRadius,
+);
+await mouse(
+  'mouseReleased',
+  bearingStart.cx + Math.cos(bearingTarget) * bearingRadius,
+  bearingStart.cy + Math.sin(bearingTarget) * bearingRadius,
+  0,
+);
+await sleep(300);
+const bearingAfter = await evaluate(`window.__fluoddity.cameraState.rotation`);
+if (Math.abs(bearingAfter - bearingStart.rotation) > 0.2) {
+  pass(`dragging the rim bearing rotates the dish (${bearingStart.rotation.toFixed(2)} -> ${bearingAfter.toFixed(2)})`);
+} else {
+  fail(`rim bearing drag left rotation at ${bearingAfter}`);
+}
+
+await mouse('mousePressed', navStart.whiteX, navStart.whiteY);
+await mouse('mouseMoved', navStart.whiteX + 84, navStart.whiteY + 42);
+await mouse('mouseReleased', navStart.whiteX + 84, navStart.whiteY + 42, 0);
 await sleep(300);
 const afterPrimaryPan = await evaluate(`[...window.__fluoddity.cameraState.pan]`);
 if (afterPrimaryPan.some((v, i) => Math.abs(v - navStart.pan[i]) > 1e-6)) {
-  pass('Observe drag pans the camera');
+  pass('Observe drag pans from the pale area outside the dish');
 } else {
-  fail('Observe drag left the camera pan unchanged');
+  fail('Observe drag on the pale area left the camera pan unchanged');
 }
 
 await send(
   'Input.dispatchMouseEvent',
-  { type: 'mouseWheel', x: navStart.x, y: navStart.y, deltaX: 0, deltaY: 120 },
+  { type: 'mouseWheel', x: navStart.whiteX, y: navStart.whiteY, deltaX: 0, deltaY: 120 },
   sid,
 );
 await sleep(300);
 const afterWheelZoom = await evaluate(`window.__fluoddity.cameraState.zoom`);
 if (Math.abs(afterWheelZoom - navStart.zoom) > 1e-6) {
-  pass(`wheel zoom changed magnification ${navStart.zoom} -> ${afterWheelZoom}`);
+  pass(`wheel zoom works over the pale stage (${navStart.zoom} -> ${afterWheelZoom})`);
 } else {
   fail('wheel input left camera zoom unchanged');
+}
+
+const precessionStart = await evaluate(`(() => {
+  const handle = document.getElementById('fluoddity-dish-orient');
+  const dish = document.getElementById('fluoddity-petri-dish');
+  if (!handle || !dish) return null;
+  const h = handle.getBoundingClientRect();
+  const d = dish.getBoundingClientRect();
+  return { x:h.x+h.width/2,y:h.y+h.height/2,cx:d.x+d.width/2,cy:d.y+d.height/2,
+    rotation:window.__fluoddity.cameraState.rotation };
+})()`);
+if (precessionStart === null) die('The dish orientation handle disappeared after panning.');
+const precessionAngle = Math.atan2(
+  precessionStart.y - precessionStart.cy,
+  precessionStart.x - precessionStart.cx,
+);
+const precessionRadius = Math.hypot(
+  precessionStart.x - precessionStart.cx,
+  precessionStart.y - precessionStart.cy,
+);
+const precessionTarget = precessionAngle - 0.36;
+await mouse('mousePressed', precessionStart.x, precessionStart.y);
+await mouse(
+  'mouseMoved',
+  precessionStart.cx + Math.cos(precessionTarget) * precessionRadius,
+  precessionStart.cy + Math.sin(precessionTarget) * precessionRadius,
+);
+await mouse(
+  'mouseReleased',
+  precessionStart.cx + Math.cos(precessionTarget) * precessionRadius,
+  precessionStart.cy + Math.sin(precessionTarget) * precessionRadius,
+  0,
+);
+await sleep(300);
+const precessionAfter = await evaluate(`(() => {
+  const d = document.getElementById('fluoddity-petri-dish').getBoundingClientRect();
+  return { cx:d.x+d.width/2,cy:d.y+d.height/2,
+    rotation:window.__fluoddity.cameraState.rotation };
+})()`);
+const centreDrift = Math.hypot(
+  precessionAfter.cx - precessionStart.cx,
+  precessionAfter.cy - precessionStart.cy,
+);
+if (
+  Math.abs(precessionAfter.rotation - precessionStart.rotation) > 0.18 &&
+  centreDrift < 1
+) {
+  pass(`rotation keeps the panned dish centre fixed (${centreDrift.toFixed(3)}px drift)`);
+} else {
+  fail(`panned rotation changed by ${precessionAfter.rotation - precessionStart.rotation} with ${centreDrift}px centre drift`);
+}
+
+await evaluate(`window.__fluoddity.dispatch({ kind: 'stepHighlightedCohort', delta: 1 })`);
+await sleep(300);
+const cohortPalette = await evaluate(`(() => {
+  const palette = document.getElementById('fluoddity-cohort-actions');
+  const status = window.__fluoddity.status();
+  if (!palette) return { reason:'missing', highlighted:status.highlightedCohort,
+    enabled:status.highlightEnabled };
+  if (palette.hidden) return { reason:'hidden', highlighted:status.highlightedCohort,
+    enabled:status.highlightEnabled, display:getComputedStyle(palette).display };
+  const text = [...palette.querySelectorAll('button')].map((button) => button.textContent.trim());
+  const r = palette.getBoundingClientRect();
+  return { text, width:r.width, height:r.height };
+})()`);
+if (
+  cohortPalette !== null &&
+  Array.isArray(cohortPalette.text) &&
+  ['Save','Mutate','Restart dish'].every((label) => cohortPalette.text.includes(label)) &&
+  cohortPalette.width >= 236 && cohortPalette.height < 360
+) {
+  pass('a selected cohort opens the compact Save / Mutate / Restart palette');
+} else {
+  fail(`cohort palette is ${JSON.stringify(cohortPalette)}`);
+}
+await mouse('mousePressed', dismissX, dismissY);
+await mouse('mouseReleased', dismissX, dismissY, 0);
+await sleep(300);
+const paletteDismissed = await evaluate(`(() => {
+  const palette = document.getElementById('fluoddity-cohort-actions');
+  return palette?.hidden === true && window.__fluoddity.status().highlightedCohort < 0;
+})()`);
+if (paletteDismissed) {
+  pass('a blank-stage tap also dismisses the selected-cohort palette');
+} else {
+  fail('the selected-cohort palette remained open after a blank-stage tap');
 }
 
 await evaluate(`window.__fluoddity.dispatch({ kind: 'setMouseMode', mode: 'draw' })`);

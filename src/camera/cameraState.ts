@@ -301,6 +301,27 @@ export class CameraState {
     this.setRotation(this.rotation + radians);
   }
 
+  /**
+   * Rotate the view without letting the world origin orbit across the screen.
+   *
+   * The culture vessel is centred on world [0, 0]. A plain `setRotation`
+   * rotates an existing pan vector with the scene, so a vessel that has been
+   * panned away from screen centre appears to precess. Counter-rotating the pan
+   * by the camera delta preserves the origin's exact screen coordinate.
+   */
+  setRotationAroundWorldOrigin(rotation: number): void {
+    if (!Number.isFinite(rotation)) return;
+    const before = this.rotation;
+    this.setRotation(rotation);
+    this.pan = rotateVec2(this.pan, before - this.rotation);
+  }
+
+  /** Nudge orientation while keeping world [0, 0] fixed on screen. */
+  rotateAroundWorldOriginBy(radians: number): void {
+    if (!Number.isFinite(radians) || radians === 0.0) return;
+    this.setRotationAroundWorldOrigin(this.rotation + radians);
+  }
+
   toggleMode(): void {
     this.mode = nextCameraMode(this.mode);
   }

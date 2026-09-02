@@ -8,13 +8,18 @@ export function announceWorkspaceDrawer(drawer: WorkspaceDrawer): void {
   window.dispatchEvent(new CustomEvent<WorkspaceDrawer>(DRAWER_EVENT, { detail: drawer }));
 }
 
+/** Dismiss every workspace surface after a tap on unoccupied stage space. */
+export function dismissWorkspaceDrawers(): void {
+  window.dispatchEvent(new CustomEvent<null>(DRAWER_EVENT, { detail: null }));
+}
+
 /** Close a surface when a different workspace drawer opens. */
 export function closeWhenWorkspaceDrawerChanges(
   owner: WorkspaceDrawer,
   close: () => void,
 ): () => void {
   const listener = (event: Event): void => {
-    const drawer = (event as CustomEvent<WorkspaceDrawer>).detail;
+    const drawer = (event as CustomEvent<WorkspaceDrawer | null>).detail;
     if (drawer !== owner) close();
   };
   window.addEventListener(DRAWER_EVENT, listener);
