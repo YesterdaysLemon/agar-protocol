@@ -76,7 +76,11 @@ export function buildProjectSection(
   // themselves (`advancedToggle.ts`).
   addAdvancedToggle(folder, 'advancedProject', ctx);
 
-  for (const [group, settings] of grouped(ctx.advanced, [CONFIG, WORLD])) {
+  // Project now shares the right-hand drawer with Preferences, whose tier is
+  // `ctx.advanced`. Resolve Project's own tier explicitly so the two toggles
+  // stay independent after a drawer rebuild.
+  const advanced = ctx.advancedFor('advancedProject');
+  for (const [group, settings] of grouped(advanced, [CONFIG, WORLD])) {
     // `group` is never empty for these entries -- every CONFIG/WORLD setting
     // declares one -- but the fallback keeps a future ungrouped entry from
     // producing a folder with no title rather than crashing.

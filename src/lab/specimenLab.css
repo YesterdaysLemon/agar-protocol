@@ -1086,3 +1086,136 @@ html.fluoddity-console .dish-state { left:32px; }
   .lab-toast { transition:none; }
   .lab-live-status span.just-bred { animation:none; }
 }
+
+/* -------------------------------------------------------------------------
+   2026 interaction pass: canvas-first drawers and readable controls
+   ------------------------------------------------------------------------- */
+
+body { font-family: system-ui,-apple-system,"Segoe UI",sans-serif; }
+
+#fluoddity-specimen-lab:not(.is-collapsed) { width:420px; }
+.lab-body { overflow-y:auto;overscroll-behavior:contain; }
+.lab-heading small,.specimen-dialog-head small { font-size:10px; }
+.lab-heading strong { font-size:17px; }
+.lab-count { padding:6px 9px;font-size:11px; }
+.lab-flow span { font-size:9px; }
+.lab-live-status strong { font-size:16px; }
+.lab-live-status span { font-size:10px; }
+.lab-instruction { min-height:0;font-size:13px;line-height:1.5; }
+.lab-capture,.lab-seed,.specimen-dialog-save {
+  min-height:40px;padding:10px 14px;font-size:11px;
+}
+.lab-arena-copy strong { font-size:13px; }
+.lab-arena-copy span { font-size:11px;line-height:1.45; }
+.lab-variation { font-size:11px; }
+.lab-variation output { font-size:11px; }
+.lab-variation input { height:24px;margin:0; }
+.lab-shelf-label { font-size:10px; }
+.specimen-jar-image { height:92px; }
+.specimen-jar-image small { font-size:9px; }
+.specimen-jar-copy { padding:10px;gap:5px; }
+.specimen-jar-copy strong { font-size:13px; }
+.specimen-jar-copy > span { font-size:11px;line-height:1.4; }
+.specimen-jar-copy code { font-size:9px; }
+.specimen-jar-actions { min-height:38px;padding:5px 8px; }
+.specimen-jar-actions time { font-size:9px; }
+.specimen-edit,.specimen-remove { min-width:32px;min-height:30px;font-size:11px; }
+.specimen-remove { font-size:17px; }
+
+#fluoddity-control-rack:not(.is-collapsed) { width:340px;overflow:hidden; }
+.culture-console-head small,.culture-console-state,.culture-console-label { font-size:9px; }
+.culture-console-head strong { font-size:17px; }
+.culture-console-label { padding:9px 11px 7px; }
+.culture-console-host { padding:0 10px 10px; }
+#fluoddity-control-rack #fluoddity-menubar { grid-template-columns:repeat(3,minmax(0,1fr)); }
+#fluoddity-control-rack #fluoddity-menubar [data-menu] {
+  min-height:38px;padding:8px 9px !important;font-size:11px !important;letter-spacing:.03em !important;
+}
+#fluoddity-control-rack #fluoddity-menubar > div:nth-child(even) [data-menu] { border-right:0 !important; }
+#fluoddity-control-rack #fluoddity-menubar > div:nth-child(3n) [data-menu] { border-right:1px solid #c8cdcb !important; }
+#fluoddity-control-rack #fluoddity-menubar > div:nth-last-child(-n+3) [data-menu] { border-bottom:1px solid #c8cdcb !important; }
+.culture-control-block > .culture-console-label { padding:9px 1px 7px; }
+.culture-population-body button { height:36px !important; }
+.culture-variation-head span:first-child,.culture-variation-head span:last-child { font-size:11px !important; }
+.culture-action-body button { min-height:38px !important;font-size:12px !important; }
+.culture-mode-body select,.culture-mode-body button { height:40px !important;font-size:12px !important; }
+.culture-mode-body { grid-template-columns:1fr; }
+.culture-context { font-size:11px !important;line-height:1.5 !important; }
+.culture-context button { min-height:38px !important; }
+.culture-orientation-controls button { height:34px;font-size:9px; }
+.culture-orientation-controls output { font-size:10px; }
+#fluoddity-control-rack #fluoddity-fps { min-height:36px;font-size:11px !important; }
+#fluoddity-control-rack #fluoddity-physics > button { width:38px !important;height:38px !important; }
+#fluoddity-control-rack > footer,.lab-attribution { font-size:9px; }
+
+#fluoddity-settings-launcher {
+  position:fixed;z-index:35;top:16px;right:84px;display:grid !important;width:56px;height:56px !important;
+  box-sizing:border-box;place-items:center;padding:0;color:var(--lab-accent) !important;
+  border:1px solid #8f9996 !important;border-radius:3px !important;background:#f5f7f6 !important;
+  box-shadow:0 7px 18px rgba(31,38,39,.12),inset 0 1px #fff;cursor:pointer;
+}
+#fluoddity-settings-launcher:hover,#fluoddity-settings-launcher:focus-visible {
+  border-color:#657b84 !important;outline:none;background:#fff !important;
+}
+#fluoddity-settings-launcher > span { display:none; }
+
+html.fluoddity-console:not(.fluoddity-touch) #fluoddity-panel-right {
+  top:16px !important;right:152px !important;max-height:calc(100vh - 32px) !important;
+}
+#fluoddity-panel-right { font-size:13px; }
+#fluoddity-panel-right .tp-dfwv { font-size:13px; }
+#fluoddity-panel-right .tp-lblv_l { font-size:12px !important;line-height:1.35 !important; }
+#fluoddity-panel-right button,
+#fluoddity-panel-right input,
+#fluoddity-panel-right select { min-height:34px;font-size:12px !important; }
+
+@media (max-width:900px) {
+  #fluoddity-specimen-lab:not(.is-collapsed) {
+    top:8px;right:8px;bottom:calc(var(--fluoddity-bar-height,72px) + 8px);left:8px;
+    z-index:36;width:auto;max-height:none;
+  }
+  #fluoddity-specimen-lab.is-collapsed { top:8px;right:8px;bottom:auto;left:auto; }
+  #fluoddity-specimen-lab:not(.is-collapsed) .lab-body { display:flex;overflow-y:auto; }
+  .lab-flow { flex:none; }
+  .lab-mark,.culture-console-mark,
+  #fluoddity-specimen-lab.is-collapsed .lab-mark,
+  #fluoddity-control-rack.is-collapsed .culture-console-mark { width:44px;height:44px; }
+  .lab-live { flex:none; }
+  .lab-capture { min-height:44px; }
+  .lab-variation input { height:44px; }
+  .lab-shelf-label { order:3;flex:none; }
+  .lab-shelf {
+    display:grid;order:4;flex:none;grid-template-columns:1fr;overflow:visible;padding-bottom:10px;
+  }
+  .specimen-jar { width:auto;min-height:0; }
+  .specimen-jar-image { height:108px; }
+  .specimen-jar-actions { min-height:44px; }
+  .specimen-edit,.specimen-remove { min-width:44px;min-height:44px; }
+  .lab-arena {
+    position:sticky;bottom:0;z-index:4;order:5;flex:none;padding:12px 14px;
+    box-shadow:0 -8px 20px rgba(31,38,39,.12);
+  }
+  .lab-seed { min-width:112px;min-height:44px; }
+  .lab-attribution { display:none; }
+  .specimen-dialog-close { width:44px;height:44px; }
+  .specimen-dialog input,
+  .specimen-dialog button { min-height:44px; }
+  .specimen-dialog label { font-size:12px; }
+
+  #fluoddity-control-rack.is-mobile:not(.is-collapsed) {
+    top:8px;right:8px;bottom:calc(var(--fluoddity-bar-height,72px) + 8px);left:8px;
+    z-index:36;width:auto;max-height:none;overflow-y:auto;
+  }
+  #fluoddity-control-rack.is-mobile.is-collapsed { top:8px;bottom:auto;left:8px; }
+  #fluoddity-control-rack > footer { display:none; }
+
+  #fluoddity-panel-right .tp-lblv_l { font-size:13px !important; }
+  #fluoddity-panel-right button,
+  #fluoddity-panel-right input,
+  #fluoddity-panel-right select { min-height:44px;font-size:14px !important; }
+}
+
+@media (max-width:900px) and (max-height:520px) {
+  .lab-arena { position:static; }
+  .lab-shelf { grid-template-columns:repeat(2,minmax(0,1fr)); }
+}

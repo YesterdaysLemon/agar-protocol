@@ -99,7 +99,7 @@ const TOOL_LABELS: Record<MouseMode, string> = {
  */
 export function toolOptionLabel(mode: MouseMode, mobile: boolean): string {
   const key = mobile ? '' : hotkeyLabel({ kind: 'setMouseMode', mode });
-  return `Tool: ${TOOL_LABELS[mode]}${key === '' ? '' : ` (${key})`}`;
+  return `${mobile ? '' : 'Tool: '}${TOOL_LABELS[mode]}${key === '' ? '' : ` (${key})`}`;
 }
 
 export class MutationOverlay {
@@ -113,6 +113,9 @@ export class MutationOverlay {
   private readonly tool: HTMLSelectElement;
   /** The gear, at the right end. See its construction for why it lives here. */
   private readonly gear: HTMLButtonElement;
+  /** Touch-only disclosure for the less-frequent culture actions. */
+  private readonly secondaryToggle: HTMLButtonElement | null;
+  private readonly secondaryRow: HTMLElement | null;
   /**
    * Pause/Resume, at the LEFT end of the touch bar's top row. `null` on desktop.
    *
@@ -467,6 +470,7 @@ export class MutationOverlay {
       [hotkeyLabel({ kind: 'randomizeSeed' })],
       opts.mobile === true,
     )}`;
+    if (opts.mobile === true) this.reroll.textContent = 'Reroll';
     this.reroll.style.cssText = opts.mobile === true ? TOUCH_CONTROL_CSS : BUTTON_CSS;
     this.reroll.dataset['setting'] = 'config.mutationSeed.randomize';
 
@@ -655,7 +659,7 @@ export class MutationOverlay {
     // able to move it and a label naming no key would be the one control here
     // that hides its shortcut.
     this.tooltip.attach(this.gear, () => ({
-      title: 'Toggle UI Panels',
+      title: 'Settings',
       body: `${TOGGLE_UI_HELP}${this.uiKeySuffix}`,
     }));
     this.gear.addEventListener('click', () => {
@@ -724,7 +728,7 @@ export class MutationOverlay {
     if (opts.mobile === true) {
       this.pause = document.createElement('button');
       this.pause.type = 'button';
-      this.pause.style.cssText = GEAR_BUTTON_CSS;
+      this.pause.style.cssText = TOUCH_ICON_BUTTON_CSS;
       this.pause.dataset['setting'] = 'transport.togglePause';
       this.pause.append(pauseIcon());
       // Seeded to RUNNING, which is how the app starts. `refresh` corrects it on
@@ -755,17 +759,44 @@ export class MutationOverlay {
 
       const top = document.createElement('div');
       top.style.cssText = TOUCH_BAR_ROW_CSS;
-      // PAUSE, SLIDER, GEAR. The two icons bracket the control they act on: one
-      // freezes what the slider is changing, the other hides everything around
-      // it. Both are fixed-width and centre against the two-line stack between
-      // them, which is the arrangement the gear's own comment above describes.
-      top.append(this.pause, sliderGroup, this.gear);
+      this.gear.style.cssText = TOUCH_ICON_BUTTON_CSS;
+
+      this.secondaryToggle = document.createElement('button');
+      this.secondaryToggle.type = 'button';
+      this.secondaryToggle.style.cssText = TOUCH_ICON_BUTTON_CSS;
+      this.secondaryToggle.textContent = '•••';
+      this.secondaryToggle.setAttribute('aria-label', 'Show culture actions');
+      this.secondaryToggle.setAttribute('aria-expanded', 'false');
+      this.secondaryToggle.title = 'Culture actions';
+
+      top.append(this.pause, sliderGroup, this.secondaryToggle, this.gear);
 
       const bottom = document.createElement('div');
-      bottom.style.cssText = TOUCH_BAR_ROW_CSS;
+      bottom.style.cssText = TOUCH_ACTIONS_ROW_CSS;
       // `rerollAll` and `reroll` swap places with the state (see `refresh`), so
       // both live here and the swap continues to work untouched.
       bottom.append(presets, this.rerollAll, this.reroll, this.reset, this.tool);
+      this.secondaryRow = bottom;
+      for (const child of presets.children) {
+        if (child instanceof HTMLElement) {
+          child.style.width = 'auto';
+          child.style.height = '44px';
+          child.style.flex = '1 1 0';
+        }
+      }
+      presets.style.width = '100%';
+      presets.style.flex = '1 0 100%';
+      presets.style.justifyContent = 'stretch';
+      this.secondaryToggle.addEventListener('click', () => {
+        const expanded = bottom.style.display === 'none';
+        bottom.style.display = expanded ? 'flex' : 'none';
+        this.secondaryToggle?.setAttribute('aria-expanded', String(expanded));
+        this.secondaryToggle?.setAttribute(
+          'aria-label',
+          expanded ? 'Hide culture actions' : 'Show culture actions',
+        );
+        this.secondaryToggle?.blur();
+      });
 
       bar.style.cssText = TOUCH_BAR_CSS;
       bar.append(top, bottom);
@@ -773,6 +804,8 @@ export class MutationOverlay {
       // No pause button here: the menu bar and `Space` both carry it, and this
       // row is width-constrained in a way the touch layout's two rows are not.
       this.pause = null;
+      this.secondaryToggle = null;
+      this.secondaryRow = null;
       bar.append(
         presets,
         this.label,
@@ -1534,6 +1567,13 @@ export class MutationOverlay {
     this.hintLead.textContent = leadText;
     this.hintTail.textContent = suppressForTouch ? '' : tail;
 
+    if (this.mobile) {
+      const meaningful =
+        leadText !== '' || cohort !== null || commit || clearField || cancelSelection ||
+        generateChild || (undo !== null && undo !== '');
+      this.hint.style.display = meaningful ? 'flex' : 'none';
+    }
+
     // **AN EMPTY SPAN MUST NOT CLAIM A SHARE OF THE ROW.** Both text spans are
     // `flex:1 1 0` on touch, so that a long sentence yields to the buttons
     // rather than crushing them. The cost of a zero basis is that an EMPTY span
@@ -1890,6 +1930,14 @@ export class MutationOverlay {
     this.paintGear(hidden);
   }
 
+  /** Return touch controls to their compact, one-row state. */
+  collapseSecondaryActions(): void {
+    if (this.secondaryRow === null || this.secondaryToggle === null) return;
+    this.secondaryRow.style.display = 'none';
+    this.secondaryToggle.setAttribute('aria-expanded', 'false');
+    this.secondaryToggle.setAttribute('aria-label', 'Show culture actions');
+  }
+
   /**
    * Colour the gear and state its condition in words.
    *
@@ -1905,7 +1953,7 @@ export class MutationOverlay {
     // reads the panel state on hover, like the other two live sources here.
     this.gear.setAttribute(
       'aria-label',
-      `Control panels: ${hidden ? 'hidden' : 'showing'} — show/hide them${this.uiKeySuffix}`,
+      `Settings: ${hidden ? 'closed' : 'open'} — open or close${this.uiKeySuffix}`,
     );
     this.gear.setAttribute('aria-pressed', String(!hidden));
   }
@@ -2819,6 +2867,15 @@ const TOUCH_BAR_CSS =
 // touch rather than by sight.
 const TOUCH_BAR_ROW_CSS =
   'display:flex;align-items:center;gap:8px;width:100%;min-width:0;';
+
+const TOUCH_ICON_BUTTON_CSS =
+  'display:flex;align-items:center;justify-content:center;flex:none;width:44px;height:44px;' +
+  'box-sizing:border-box;padding:0;border:1px solid rgba(255,255,255,0.14);' +
+  'border-radius:8px;background:rgba(255,255,255,0.10);color:#e8e8ea;' +
+  'font:700 17px/1 system-ui,sans-serif;letter-spacing:.08em;cursor:pointer;';
+
+const TOUCH_ACTIONS_ROW_CSS =
+  'display:none;align-items:stretch;gap:8px;width:100%;min-width:0;flex-wrap:wrap;';
 
 // The slider and its caption, OVERLAID rather than stacked.
 //

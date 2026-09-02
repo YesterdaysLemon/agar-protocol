@@ -1,5 +1,9 @@
 import type { CommandBus, Status } from '../orchestrator/commands.ts';
 import type { CameraState } from '../camera/cameraState.ts';
+import {
+  announceWorkspaceDrawer,
+  closeWhenWorkspaceDrawerChanges,
+} from '../ui/workspaceDrawer.ts';
 import { worldToScreenNdc } from '../particleSystem/coords.ts';
 import { captureRegion, imageToCanvas } from '../ui/shareCapture.ts';
 import {
@@ -20,7 +24,6 @@ export interface SpecimenLabOptions {
   readonly canvas: HTMLCanvasElement;
   readonly camera: () => CameraState;
   readonly canvasSize: () => readonly [number, number];
-  readonly mobile?: boolean;
 }
 
 function button(label: string, className: string): HTMLButtonElement {
@@ -145,7 +148,7 @@ export class SpecimenLab {
       '<span class="dish-scale">Ø 0.86 · SEALED FIELD</span>';
     document.body.append(this.dish);
 
-    const startsCollapsed = opts.mobile === true;
+    const startsCollapsed = true;
     this.root = document.createElement('aside');
     this.root.id = 'fluoddity-specimen-lab';
     this.root.classList.toggle('is-collapsed', startsCollapsed);
@@ -167,12 +170,20 @@ export class SpecimenLab {
     this.shelfCount.className = 'lab-count';
     const collapse = heading.querySelector<HTMLButtonElement>('.lab-toggle')!;
     collapse.title = startsCollapsed ? 'Open specimen shelf' : 'Collapse specimen shelf';
+    collapse.setAttribute('aria-label', collapse.title);
     collapse.setAttribute('aria-expanded', String(!startsCollapsed));
     collapse.addEventListener('click', () => {
       const collapsed = this.root.classList.toggle('is-collapsed');
       collapse.title = collapsed ? 'Open specimen shelf' : 'Collapse specimen shelf';
       collapse.setAttribute('aria-label', collapse.title);
       collapse.setAttribute('aria-expanded', String(!collapsed));
+      if (!collapsed) announceWorkspaceDrawer('specimens');
+    });
+    closeWhenWorkspaceDrawerChanges('specimens', () => {
+      this.root.classList.add('is-collapsed');
+      collapse.title = 'Open specimen shelf';
+      collapse.setAttribute('aria-label', collapse.title);
+      collapse.setAttribute('aria-expanded', 'false');
     });
     header.append(heading, this.shelfCount);
 
@@ -201,7 +212,7 @@ export class SpecimenLab {
     this.project = document.createElement('strong');
     this.generation = document.createElement('span');
     status.append(this.project, this.generation);
-    this.captureButton = button('Capture specimen', 'lab-capture');
+    this.captureButton = button('Archive lineage', 'lab-capture');
     this.captureButton.addEventListener('click', () => void this.openCapture());
     liveTop.append(status, this.captureButton);
     this.instruction = document.createElement('p');
@@ -374,7 +385,7 @@ export class SpecimenLab {
     this.captureButton.textContent = 'Capturing…';
     const thumbnail = await captureThumbnail(this.canvas);
     this.captureButton.disabled = false;
-    this.captureButton.textContent = 'Capture specimen';
+    this.captureButton.textContent = 'Archive lineage';
     this.pendingSource = {
       ...snapshot,
       ...(thumbnail === undefined ? {} : { thumbnail }),

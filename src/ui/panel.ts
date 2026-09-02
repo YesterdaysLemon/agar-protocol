@@ -101,6 +101,10 @@ import {
 import { Tooltip } from './tooltip.ts';
 import { Toast, type ToastTone } from './toast.ts';
 import { copyText, readText } from './clipboard.ts';
+import {
+  announceWorkspaceDrawer,
+  closeWhenWorkspaceDrawerChanges,
+} from './workspaceDrawer.ts';
 import { fromDocument, sanitizeName } from '../config/persistence.ts';
 import { describeImport, exportFiles, planImport } from '../config/saveTransfer.ts';
 // STATIC, not a dynamic import, and for the reason `recorder/saveFile.ts` is
@@ -333,6 +337,7 @@ export class Panel {
   private readonly onSplashClosed: (() => void) | null;
   private readonly left: PanelSide;
   private readonly right: PanelSide;
+  private readonly releaseDrawerListener: () => void;
 
   /** The right panel's tab host, for the tool-driven switch in `refresh`. */
   private settings: SettingsSectionHandle | null = null;
@@ -860,6 +865,11 @@ export class Panel {
 
     this.buildBoth();
 
+    this.releaseDrawerListener = closeWhenWorkspaceDrawerChanges('settings', () => {
+      this.overlay.collapseSecondaryActions();
+      if (!this.hiddenFlag) this.setHidden(true);
+    });
+
     // LAST, and after `buildBoth`. The panes must exist before their containers
     // are hidden, or the first reveal would show two empty columns; and
     // `applyHidden` rather than `setHidden` because there is nothing to notify
@@ -885,10 +895,9 @@ export class Panel {
    */
   private buildBoth(): void {
     const status = this.bus.status();
-    // EMPTY ON TOUCH -- Project moves into the right panel's tab strip, because
-    // two 320px columns do not fit on a phone. The build loop runs over nothing
-    // rather than being skipped, so refresh, dispose and the hidden-state
-    // handling below all stay exactly as they are. See `panelModel.ts`.
+    // The canvas-first shell uses one settings drawer on every viewport, so the
+    // legacy left pane intentionally has no sections. Keep building the empty
+    // side so refresh, disposal, and hidden-state handling remain symmetrical.
     this.left.pane = this.buildSide(this.left, LEFT, leftSections(this.mobile), status);
     this.right.pane = this.buildSide(this.right, RIGHT, rightSections(), status);
 
@@ -952,10 +961,8 @@ export class Panel {
           this.exportVideoShown && this.recording !== null
             ? this.recordingOptions()
             : undefined,
-          // Project becomes a tab here exactly when the left panel is empty --
-          // the same decision `leftSections` makes, read from the same flag, so
-          // the two cannot both claim it and render it twice.
-          this.mobile,
+          // Project lives in this single settings drawer on every viewport.
+          true,
           // Undefined -- and so NO link tab -- unless the menu item is ticked.
           // Unlike recording there is no second condition: building a share URL
           // needs nothing this panel might be missing.
@@ -986,9 +993,9 @@ export class Panel {
    * `grouped(ctx.advanced, ...)` call site grow an argument for no gain.
    *
    * The right panel's two tabs are a wrinkle: they are one section list but two
-   * tiers. The settings section resolves that itself by asking for the flag it
-   * wants, so what this bakes in for RIGHT is the Preferences tab's -- and
-   * `drawingSection` reads `advancedDrawing` through its own toggle instead.
+   * tiers. The settings section resolves those explicitly: what this bakes in
+   * for RIGHT is the Preferences tab's, while Project and Drawing read their
+   * own flags through `advancedFor`.
    */
   private context(which: Side): SectionContext {
     const field: ViewPrefField =
@@ -1054,6 +1061,11 @@ export class Panel {
    * `activeTab` is held on the panel precisely so this cannot lose it.
    */
   private rebuild(): void {
+    // A tier checkbox schedules this rebuild in the same event turn as its tab
+    // click. Capture the section's live answer before disposing it; waiting for
+    // the next animation-frame refresh would reset a newly selected Project tab
+    // to the older panel-level value.
+    if (this.settings !== null) this.activeTab = this.settings.activeTab();
     this.left.pane.dispose();
     this.right.pane.dispose();
     this.settings = null;
@@ -1588,6 +1600,10 @@ export class Panel {
    */
   setHidden(hidden: boolean): void {
     this.applyHidden(hidden);
+    if (!hidden) {
+      this.overlay.collapseSecondaryActions();
+      announceWorkspaceDrawer('settings');
+    }
     // EVERY PATH THAT HIDES THE PANELS COMES THROUGH HERE -- the `X` key, the
     // Editor menu item, and the corner gear -- so this is the one
     // place that can tell the Orchestrator to stop building settings payloads
@@ -1609,7 +1625,9 @@ export class Panel {
   private applyHidden(hidden: boolean): void {
     this.hiddenFlag = hidden;
     const display = hidden ? 'none' : '';
-    this.left.container.style.display = display;
+    // The left column is retired; Project is the first tab in the unified
+    // settings drawer. Keep the inert container hidden across every toggle.
+    this.left.container.style.display = 'none';
     this.right.container.style.display = display;
     // The overlay does NOT go: `X` hides the panels so you can see the picture,
     // and the overlay is the picture's own controls. It is told anyway, because
@@ -2594,6 +2612,7 @@ export class Panel {
     this.recordingBar.dispose();
     this.fpsCounter.dispose();
     this.splash.dispose();
+    this.releaseDrawerListener();
     this.left.container.remove();
     this.right.container.remove();
   }
@@ -2690,15 +2709,14 @@ function sideContainer(which: Side, mobile = false): HTMLElement {
   // scrolling, too little hides controls.
   if (mobile) {
     el.style.cssText =
-      'position:fixed;left:0;right:0;' +
-      `top:${PANEL_TOP_PX}px;` +
-      'bottom:calc(var(--fluoddity-bar-height, 190px) + 8px);' +
+      'position:fixed;left:8px;right:8px;top:8px;' +
+      'bottom:calc(var(--fluoddity-bar-height, 72px) + 8px);' +
       'overflow-y:auto;-webkit-overflow-scrolling:touch;' +
       // CONTAINS ITS OWN SCROLL. Without this, flicking past the end of a long
       // settings list continues into the page behind it -- and the page is the
       // canvas, which has `touch-action:none` and would simply eat the rest of
       // the gesture. The list would feel like it had stuck.
-      'overscroll-behavior:contain;z-index:20;padding:0 6px;box-sizing:border-box;';
+      'overscroll-behavior:contain;z-index:36;box-sizing:border-box;';
     document.body.append(el);
     return el;
   }
@@ -2707,31 +2725,10 @@ function sideContainer(which: Side, mobile = false): HTMLElement {
   // is the taller of the two. The panels are 320px and the overlay is capped so
   // that on any window wide enough for both there is no horizontal overlap --
   // this clears it vertically as well, for windows that are not.
-  const top = PANEL_TOP_PX;
   el.style.cssText =
-    `position:fixed;top:${top}px;${left ? 'left:8px' : 'right:8px'};` +
-    `width:320px;max-height:calc(100vh - ${top + 8}px);overflow-y:auto;z-index:20;`;
+    `position:fixed;top:16px;${left ? 'left:84px' : 'right:152px'};` +
+    'width:min(440px,calc(100vw - 236px));max-height:calc(100vh - 32px);' +
+    'overflow-y:auto;overscroll-behavior:contain;z-index:33;';
   document.body.append(el);
   return el;
 }
-
-/**
- * Where both side panels start, in px from the top.
- *
- * Clears the menu bar (fixed at `top:0`, ~26px) and the mutation overlay
- * beneath it. A single constant because the two panels must agree -- one of
- * them starting lower than the other reads as a rendering bug.
- *
- * HAND-COMPUTED, not derived from `mutationOverlay.ts`'s MENU_BAR_CLEARANCE --
- * these two numbers are related by intent only, so moving one without the other
- * is what makes them overlap. Raised from 78 because at some window sizes the
- * panels still clipped the mutation slider's bottom edge.
- *
- * **THE OVERLAY IS TWO ROWS NOW**, and this had to move again for it. The
- * context hint added beneath the bar is 11px text in a 5px-padded, 1px-bordered
- * box (~26px) plus the root's 4px column gap -- so ~30px, and 83 became 113.
- * Adding a third row, or changing the hint's padding or font size, means
- * revisiting this number: nothing enforces it, which is exactly what the
- * paragraph above is warning about.
- */
-const PANEL_TOP_PX = 113;

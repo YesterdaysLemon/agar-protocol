@@ -43,15 +43,13 @@ function allSections() {
   return [...leftSections(), ...rightSections()];
 }
 
-test('the left panel is the project, the right is the settings host', () => {
-  assert.deepEqual(
-    leftSections().map((s) => s.id),
-    [PROJECT] as readonly SectionId[],
-  );
+test('one settings host carries Project and editor controls', () => {
+  assert.deepEqual(leftSections().map((s) => s.id), [] as readonly SectionId[]);
   assert.deepEqual(
     rightSections().map((s) => s.id),
     [SETTINGS] as readonly SectionId[],
   );
+  assert.equal(PROJECT, 'project', 'Project stays a valid tab id');
 });
 
 test('section ids are unique across BOTH panels', () => {

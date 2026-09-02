@@ -7,14 +7,18 @@
  */
 
 import { ROTATION_STEP, type CameraState } from '../camera/cameraState.ts';
+import {
+  announceWorkspaceDrawer,
+  closeWhenWorkspaceDrawerChanges,
+} from '../ui/workspaceDrawer.ts';
 
 const MENU_LABELS: Readonly<Record<string, string>> = Object.freeze({
-  File: 'Culture',
-  Share: 'Export',
-  History: 'Record',
-  Editor: 'View',
+  File: 'Project',
+  Share: 'Share',
+  History: 'History',
+  Editor: 'Settings',
   Simulation: 'Run',
-  Help: 'Manual',
+  Help: 'Help',
 });
 
 function block(label: string, index: string, className: string): HTMLDivElement {
@@ -74,7 +78,9 @@ function arrangeMutationControls(mutation: HTMLElement): void {
   const mode = block('Manipulation mode', '02.D', 'culture-control-block culture-mode');
   const modeBody = document.createElement('div');
   modeBody.className = 'culture-mode-body';
-  modeBody.append(tool, panels);
+  modeBody.append(tool);
+  panels.id = 'fluoddity-settings-launcher';
+  document.body.append(panels);
   mode.append(modeBody);
 
   bar.replaceChildren(population, variation, actions, mode);
@@ -162,8 +168,9 @@ export function installCultureConsole(mobile: boolean, camera: CameraState): voi
       '<button class="culture-console-mark culture-console-toggle" type="button" ' +
         'aria-label="Collapse culture controls" aria-expanded="true">' +
         '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true">' +
-          '<path class="gear-teeth" d="M12 1.5v3M12 19.5v3M1.5 12h3M19.5 12h3M4.58 4.58 6.7 6.7M17.3 17.3l2.12 2.12M19.42 4.58 17.3 6.7M6.7 17.3l-2.12 2.12"></path>' +
-          '<circle cx="12" cy="12" r="6.65"></circle><circle cx="12" cy="12" r="2.35"></circle>' +
+          '<circle cx="12" cy="12" r="8.5"></circle>' +
+          '<ellipse cx="12" cy="12" rx="6" ry="2.7"></ellipse>' +
+          '<path d="M6.6 12v2.5c0 1.5 2.4 2.8 5.4 2.8s5.4-1.3 5.4-2.8V12"></path>' +
         '</svg>' +
       '</button>' +
       '<span><small>PROCEDURE CONTROL / NODE 01</small><strong>Culture operations</strong></span>' +
@@ -225,12 +232,14 @@ export function installCultureConsole(mobile: boolean, camera: CameraState): voi
     );
   };
   collapse?.addEventListener('click', () => {
-    setCollapsed(!rack.classList.contains('is-collapsed'));
+    const collapsed = !rack.classList.contains('is-collapsed');
+    setCollapsed(collapsed);
+    if (!collapsed) announceWorkspaceDrawer('culture');
   });
-  // A full rack fits beside the 86% vessel at ordinary desktop widths. Below
-  // that, open on the reticle tab so the culture remains observable; the tab is
-  // still one click away and expands to the exact same control surface.
-  setCollapsed(mobile || window.matchMedia('(max-width: 1120px)').matches);
+  // Keep the culture observable on every viewport; its launcher is always one
+  // click away and expands to the same control surface.
+  setCollapsed(true);
+  closeWhenWorkspaceDrawerChanges('culture', () => setCollapsed(true));
 
   for (const button of menu.querySelectorAll<HTMLButtonElement>(':scope > div > button')) {
     const original = button.textContent?.trim() ?? '';

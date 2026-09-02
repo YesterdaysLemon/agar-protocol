@@ -100,7 +100,14 @@ export interface ShoveContext {
  * the pause.
  */
 export function shoveState(state: InputState, ctx: ShoveContext): ShoveState | null {
-  if (ctx.paused || ctx.mouseMode !== 'shove') return null;
+  if (
+    ctx.paused ||
+    ctx.mouseMode !== 'shove' ||
+    state.middleDragging ||
+    state.middlePanning
+  ) {
+    return null;
+  }
 
   const pushing = state.leftDragging;
   // Left wins when both buttons are down, matching the Draw tool -- a stray

@@ -56,6 +56,7 @@ function withNoCalibrate(q) {
 const shotPath = flag('--shot', null);
 const settleMs = Number(flag('--settle', '4000'));
 const port = Number(flag('--port', '5173'));
+const appUrl = `http://localhost:${port}/${query}`;
 
 const userDataDir = mkdtempSync(path.join(tmpdir(), 'fluoddity-cdp-'));
 let chrome = null;
@@ -98,7 +99,7 @@ chrome = spawn(
     '--disable-features=Translate,MediaRouter',
     '--enable-unsafe-webgpu',
     '--window-size=1280,800',
-    `http://localhost:${port}/${query}`,
+    appUrl,
   ],
   { stdio: ['ignore', 'pipe', 'pipe'] },
 );
@@ -162,8 +163,23 @@ const send = (method, params = {}, sessionId) => {
   return new Promise((resolve) => pending.set(id, resolve));
 };
 
-const { result: targets } = await send('Target.getTargets');
-const page = targets.targetInfos.find((t) => t.type === 'page');
+// Chrome for Testing reports its browser endpoint before it has necessarily
+// created the requested page. Wait for the app target instead of racing target
+// creation or attaching to a transient about:blank page.
+const page = await (async () => {
+  const deadline = Date.now() + 5000;
+  let fallback;
+  while (Date.now() < deadline) {
+    const { result: targets } = await send('Target.getTargets');
+    fallback ??= targets.targetInfos.find((t) => t.type === 'page');
+    const app = targets.targetInfos.find(
+      (t) => t.type === 'page' && t.url.startsWith(`http://localhost:${port}/`),
+    );
+    if (app !== undefined) return app;
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  return fallback;
+})();
 if (page === undefined) fail('No page target -- Chrome opened no tab.');
 
 const attach = await send('Target.attachToTarget', {
@@ -174,8 +190,9 @@ const sessionId = attach.result.sessionId;
 
 await send('Runtime.enable', {}, sessionId);
 await send('Page.enable', {}, sessionId);
-// Reload so Runtime.enable is in place before the app's own startup logging.
-await send('Page.reload', { ignoreCache: true }, sessionId);
+// Navigate explicitly after Runtime.enable. Chrome for Testing can expose the
+// requested URL in target metadata before the page itself has left about:blank.
+await send('Page.navigate', { url: appUrl }, sessionId);
 
 await new Promise((r) => setTimeout(r, settleMs));
 
@@ -196,7 +213,7 @@ for (const { level, text } of logs) {
 }
 
 if (logs.length === 0) {
-  fail('\nNo console output at all -- is `npm run dev` running?');
+  fail(`\nNo console output at all from ${appUrl} -- is \`npm run dev\` running?`);
 }
 
 const errors = logs.filter((l) => l.level === 'error' || /FAILED/.test(l.text));

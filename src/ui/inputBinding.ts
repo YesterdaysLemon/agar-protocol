@@ -33,7 +33,7 @@
  */
 
 import { DEFAULT_HOTKEYS, isEditableTarget, matchHotkey, type Hotkey } from './hotkeys.ts';
-import { InputTracker } from './inputTracker.ts';
+import { InputTracker, MIDDLE_BUTTON } from './inputTracker.ts';
 import type { Surface } from '../app/surface.ts';
 import type { Command } from '../orchestrator/commands.ts';
 
@@ -188,6 +188,7 @@ export function bindInput(opts: InputBindingOptions): {
       // received the press". The tracker enforces that too; this makes the
       // browser cooperate rather than relying on the window listeners alone.
       canvas.setPointerCapture(event.pointerId);
+      if (event.button === MIDDLE_BUTTON) event.preventDefault();
     }
     // `shiftKey` from the pointer event itself: Shift+Right-click is redo, and
     // the modifier has to be read at the click. See `InputState.shift`.
@@ -243,6 +244,10 @@ export function bindInput(opts: InputBindingOptions): {
    */
   const onContextMenu = (event: MouseEvent): void => {
     if (!capturedByUi(event)) event.preventDefault();
+  };
+
+  const onAuxClick = (event: MouseEvent): void => {
+    if (!capturedByUi(event) && event.button === MIDDLE_BUTTON) event.preventDefault();
   };
 
   // --- keyboard ------------------------------------------------------------
@@ -322,6 +327,7 @@ export function bindInput(opts: InputBindingOptions): {
   canvas.addEventListener('pointerdown', onPointerDown);
   canvas.addEventListener('wheel', onWheel, { passive: false });
   canvas.addEventListener('contextmenu', onContextMenu);
+  canvas.addEventListener('auxclick', onAuxClick);
   window.addEventListener('pointerup', onPointerUp);
   window.addEventListener('pointercancel', onPointerCancel);
   window.addEventListener('pointermove', onPointerMove);
@@ -335,6 +341,7 @@ export function bindInput(opts: InputBindingOptions): {
       canvas.removeEventListener('pointerdown', onPointerDown);
       canvas.removeEventListener('wheel', onWheel);
       canvas.removeEventListener('contextmenu', onContextMenu);
+      canvas.removeEventListener('auxclick', onAuxClick);
       window.removeEventListener('pointerup', onPointerUp);
       window.removeEventListener('pointercancel', onPointerCancel);
       window.removeEventListener('pointermove', onPointerMove);

@@ -377,9 +377,9 @@ export const BAND_COLOR: Readonly<Record<Band, string>> = Object.freeze({
  * not "something is wrong".
  */
 export const BAND_LABEL_COLOR: Readonly<Record<Band, string>> = Object.freeze({
-  [RED]: '#ff8080',
-  [YELLOW]: '#ffc857',
-  [GREEN]: '#6ede8a',
+  [RED]: '#8b3030',
+  [YELLOW]: '#765d12',
+  [GREEN]: '#2f6f43',
 });
 
 /**

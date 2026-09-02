@@ -46,17 +46,11 @@ import {
 import type { LinkSettings } from '../../config/urlOptions.ts';
 
 /**
- * The Project tab. **TOUCH ONLY, and first in the strip when it exists.**
+ * The Project tab, first in the unified settings drawer on every viewport.
  *
- * On the desktop Project is a PANEL, not a tab -- it lives in its own column on
- * the left, because it is a different kind of state from the other three (see
- * `panelModel.ts`) and the split down the middle of the screen says so. A phone
- * has no middle to split: two 320px columns do not fit in 390px, so the touch
- * layout drops the left panel and Project joins this strip instead.
- *
- * FIRST because it is what the other three are settings ABOUT -- the project is
- * the work, and the rest is how the editor is arranged around it. It is also
- * the tab a user opens the panel to reach most often.
+ * Project is what the other tabs configure, so leading with it gives the
+ * drawer a stable information hierarchy without restoring a second desktop
+ * column over the culture.
  */
 export const PROJECT_TAB = 'project';
 export const PREFS_TAB = 'preferences';
@@ -150,12 +144,11 @@ export function buildSettingsSection(
    */
   recording?: RecordingSectionOptions,
   /**
-   * Build the Project page as a fourth tab. Touch layouts only.
+   * Build the Project page as the first tab in the unified drawer.
    *
-   * True ONLY when there is no left panel to hold it -- the two are the same
-   * decision seen from opposite ends, and having both would put Project on
-   * screen twice with two sets of live bindings writing the same fields.
-   * `panelModel.leftSections` is the other half.
+   * True only when no separate panel holds it; having both would put two sets
+   * of live bindings on the same fields. `panelModel.leftSections` is the other
+   * half of that invariant.
    */
   project?: boolean,
   /**
@@ -170,7 +163,7 @@ export function buildSettingsSection(
   // the tabs with no clue why.
   hideFolderTitle(folder);
 
-  // The Project page, FIRST in the strip and touch-only. See `PROJECT_TAB`.
+  // The Project page, FIRST in the strip. See `PROJECT_TAB`.
   //
   // **ITS TITLE IS NOT SUPPRESSED, unlike every other page here.**
   // `projectSection` retitles this folder to `Project: <name>` and keeps it
@@ -289,7 +282,7 @@ export function buildSettingsSection(
   // Anchoring on the element we actually placed cannot drift that way.
   //
   // **THE ANCHOR IS WHICHEVER PAGE IS FIRST, not Preferences by name.** Project
-  // is built ahead of it on touch, so anchoring on `prefsFolder` would leave the
+  // is built ahead of it, so anchoring on `prefsFolder` would leave the
   // strip BELOW the Project page -- tabs in the middle of the panel, under the
   // page they switch. The two must stay in step, which is why this reads the
   // same "is there a project folder" the tab list above reads.
@@ -342,7 +335,7 @@ export function buildSettingsSection(
     // bindings the left panel would have contributed on the desktop, and the
     // panel resolves reveals and gates across the whole list -- so leaving them
     // out would make every `revealsOn` and `requires` on a Project control
-    // silently stop working on touch.
+    // silently stop working in the unified drawer.
     bindings: [
       ...(projectSection?.bindings ?? []),
       ...prefs.bindings,
@@ -427,8 +420,8 @@ function hideFolderTitle(folder: FolderApi): void {
  * programmatically-selected tab visible without one.
  */
 const STRIP_CSS =
-  'display:flex;gap:2px;padding:6px 4px 2px 4px;' +
-  'border-bottom:1px solid rgba(255,255,255,0.10);margin-bottom:4px;' +
+  'display:flex;gap:4px;padding:8px 6px 4px;' +
+  'border-bottom:1px solid #c4cac7;margin-bottom:6px;' +
   'overflow-x:auto;scrollbar-width:none;';
 
 /**
@@ -441,11 +434,11 @@ const STRIP_CSS =
  */
 const TAB_BASE_CSS =
   'flex:1 1 0;min-width:0;border:0;border-radius:4px 4px 0 0;cursor:pointer;' +
-  'font:11px system-ui,sans-serif;padding:6px 6px;white-space:nowrap;' +
+  'font:650 13px system-ui,sans-serif;padding:10px 8px;white-space:nowrap;' +
   'overflow:hidden;text-overflow:ellipsis;';
 
-const TAB_IDLE_CSS = `${TAB_BASE_CSS}background:transparent;color:rgba(232,232,234,0.6);`;
+const TAB_IDLE_CSS = `${TAB_BASE_CSS}background:transparent;color:#68716f;`;
 
 const TAB_ACTIVE_CSS =
-  `${TAB_BASE_CSS}background:rgba(255,255,255,0.10);color:#e8e8ea;` +
-  'box-shadow:inset 0 -2px 0 #8ab4f8;';
+  `${TAB_BASE_CSS}background:#e4e9e7;color:#273033;` +
+  'box-shadow:inset 0 -3px 0 #526b78;';

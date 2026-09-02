@@ -48,6 +48,9 @@ export const LEFT_BUTTON = 0;
 export const MIDDLE_BUTTON = 1;
 export const RIGHT_BUTTON = 2;
 
+/** Enough movement to distinguish an intentional pan from a slightly shaky click. */
+export const POINTER_DRAG_SLOP = 6;
+
 /**
  * Accumulates input events and freezes one `InputState` per frame.
  *
@@ -69,10 +72,20 @@ export class InputTracker {
    * nobody is worse than one.
    */
   private leftDown = false;
+  private middleDown = false;
   private rightDown = false;
+
+  private leftStartX = 0;
+  private leftStartY = 0;
+  private leftMoved = false;
+  private primaryPanned = false;
+  private middlePanned = false;
+  private panX = 0;
+  private panY = 0;
 
   /** One-shots, drained by `freeze()`. */
   private leftPressed = false;
+  private leftClicked = false;
   private rightPressed = false;
 
   private scroll = 0;
@@ -94,6 +107,33 @@ export class InputTracker {
    * `inputBinding.ts`, where getting this wrong is a real hazard.
    */
   onPointerMove(x: number, y: number): void {
+    const dx = x - this.mouseX;
+    const dy = y - this.mouseY;
+
+    // Middle-drag is the universal navigation gesture. Primary-drag becomes
+    // navigation in Observe mode, but the tracker deliberately does not know
+    // the active tool; it records the movement and lets the orchestrator decide.
+    if (this.middleDown) {
+      this.panX += dx;
+      this.panY += dy;
+      this.middlePanned = true;
+    } else if (this.leftDown) {
+      if (!this.leftMoved) {
+        const distance = Math.hypot(x - this.leftStartX, y - this.leftStartY);
+        if (distance >= POINTER_DRAG_SLOP) {
+          this.leftMoved = true;
+          // Include the small lead-in once the gesture commits to a drag, so
+          // the view stays under the pointer instead of jumping by the slop.
+          this.panX += x - this.leftStartX;
+          this.panY += y - this.leftStartY;
+          this.primaryPanned = true;
+        }
+      } else {
+        this.panX += dx;
+        this.panY += dy;
+        this.primaryPanned = true;
+      }
+    }
     this.mouseX = x;
     this.mouseY = y;
   }
@@ -124,6 +164,11 @@ export class InputTracker {
     if (button === LEFT_BUTTON) {
       this.leftPressed = true;
       this.leftDown = true;
+      this.leftStartX = this.mouseX;
+      this.leftStartY = this.mouseY;
+      this.leftMoved = false;
+    } else if (button === MIDDLE_BUTTON) {
+      this.middleDown = true;
     } else if (button === RIGHT_BUTTON) {
       this.rightPressed = true;
       this.rightDown = true;
@@ -141,7 +186,11 @@ export class InputTracker {
    */
   onPointerUp(button: number): void {
     if (button === LEFT_BUTTON) {
+      if (this.leftDown && !this.leftMoved) this.leftClicked = true;
       this.leftDown = false;
+      this.leftMoved = false;
+    } else if (button === MIDDLE_BUTTON) {
+      this.middleDown = false;
     } else if (button === RIGHT_BUTTON) {
       this.rightDown = false;
     }
@@ -206,7 +255,13 @@ export class InputTracker {
     this.keysHeld.clear();
     this.keysPressed.clear();
     this.leftDown = false;
+    this.middleDown = false;
     this.rightDown = false;
+    this.leftMoved = false;
+    this.panX = 0;
+    this.panY = 0;
+    this.primaryPanned = false;
+    this.middlePanned = false;
   }
 
   /**
@@ -230,8 +285,13 @@ export class InputTracker {
       dt,
       leftPressed: this.leftPressed,
       rightPressed: this.rightPressed,
+      leftClicked: this.leftClicked,
       leftDragging: this.leftDown,
+      middleDragging: this.middleDown,
       rightDragging: this.rightDown,
+      primaryPanning: this.primaryPanned,
+      middlePanning: this.middlePanned,
+      panDelta: [this.panX, this.panY],
       scroll: this.scroll,
       keysHeld: new Set(this.keysHeld),
       keysPressed: new Set(this.keysPressed),
@@ -239,7 +299,12 @@ export class InputTracker {
     };
 
     this.leftPressed = false;
+    this.leftClicked = false;
     this.rightPressed = false;
+    this.panX = 0;
+    this.panY = 0;
+    this.primaryPanned = false;
+    this.middlePanned = false;
     this.scroll = 0;
     this.keysPressed.clear();
 

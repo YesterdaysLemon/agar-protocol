@@ -610,10 +610,7 @@ export class MenuBar {
         this.opts.onResetPreferences(),
       );
       this.addSeparator(body);
-      // "Toggle UI Panels", not "Hide Panel": the panels start hidden now, so
-      // for most of a session this item SHOWS them and the old label named the
-      // wrong half of what it does. The checkmark still reports hidden-ness.
-      this.addItem(body, 'Toggle UI Panels', () => this.opts.onToggleUi(), 'X', () =>
+      this.addItem(body, 'Open / Close Settings', () => this.opts.onToggleUi(), 'X', () =>
         this.opts.isUiHidden(),
       );
       // Tools WAS a top-level menu. It is three radio rows bound to `1`/`2`/`3`,

@@ -52,6 +52,12 @@ export interface InputState {
   readonly leftPressed: boolean;
   readonly rightPressed: boolean;
   /**
+   * A primary-button press and release completed without crossing the drag
+   * threshold. Selection reads this release-edge gesture so a pan never also
+   * selects the cohort beneath its starting point.
+   */
+  readonly leftClicked: boolean;
+  /**
    * A drag owned by the canvas is in progress.
    *
    * NOT the same as "the button is down": a press that landed on a panel never
@@ -59,7 +65,18 @@ export interface InputState {
    * crossing a panel.
    */
   readonly leftDragging: boolean;
+  readonly middleDragging: boolean;
   readonly rightDragging: boolean;
+  /** This frame contains pan movement from the primary or middle drag. */
+  readonly primaryPanning: boolean;
+  readonly middlePanning: boolean;
+
+  /**
+   * Pointer movement owned by a primary or middle-button drag this frame, in
+   * framebuffer pixels. Drained by `freeze`; the camera decides which tool may
+   * consume it.
+   */
+  readonly panDelta: readonly [number, number];
 
   /**
    * Scroll notches this frame, positive up. Zero when the wheel did not move.
@@ -124,8 +141,13 @@ export const EMPTY_INPUT: InputState = Object.freeze({
   dt: 0,
   leftPressed: false,
   rightPressed: false,
+  leftClicked: false,
   leftDragging: false,
+  middleDragging: false,
   rightDragging: false,
+  primaryPanning: false,
+  middlePanning: false,
+  panDelta: Object.freeze([0, 0]) as readonly [number, number],
   scroll: 0,
   keysHeld: Object.freeze(new Set<string>()),
   keysPressed: Object.freeze(new Set<string>()),

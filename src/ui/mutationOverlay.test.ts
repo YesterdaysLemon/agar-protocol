@@ -808,11 +808,11 @@ test('an empty stack falls back to the bare verb, not to a dangling colon', () =
   assert.equal(historyLabel('Redo', ''), 'Redo');
 });
 
-test('the tool options keep their names and drop only the number on touch', () => {
+test('the tool options use compact names on touch and keep desktop context', () => {
   // The NAME is the part that says what the option does, so suppression must
   // take the key and nothing else -- a bare "Tool:" would be a worse trade than
   // the caption ever was.
-  assert.equal(toolOptionLabel('select', true), 'Tool: Select');
-  assert.equal(toolOptionLabel('draw', true), 'Tool: Draw');
+  assert.equal(toolOptionLabel('select', true), 'Select');
+  assert.equal(toolOptionLabel('draw', true), 'Draw');
   assert.ok(toolOptionLabel('select', false).startsWith('Tool: Select'));
 });

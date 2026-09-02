@@ -1141,9 +1141,8 @@ export class Orchestrator implements CommandBus {
    * and they must not both fire -- without a tool, every click would select a
    * particle on the way down and paint on the way across.
    *
-   * NAVIGATION IS NOT A TOOL. WASD, Q/E and the scroll wheel move the view in
-   * every mode, so the mouse is free for tools and the view can be adjusted
-   * mid-stroke.
+   * NAVIGATION IS NOT A TOOL. Observe uses primary-drag to pan; middle-drag,
+   * WASD, Q/E and the scroll wheel work in every mode.
    */
   private applyCanvasInput(state: InputState): void {
     const canvasSize = this.system.canvasSize;
@@ -1151,12 +1150,18 @@ export class Orchestrator implements CommandBus {
 
     this.applyCameraKeys(state, canvasSize);
 
+    const pointerPans =
+      state.middlePanning || (this.mouseMode === 'select' && state.primaryPanning);
+    if (pointerPans && (state.panDelta[0] !== 0 || state.panDelta[1] !== 0)) {
+      this.camera.state.panByPixels(state.panDelta, windowSize, canvasSize);
+    }
+
     if (this.mouseMode === 'select') {
       // ONE CLICK, ONE PICK, unconditionally. What the pick MEANS -- aim,
       // re-aim, or commit -- is decided when the result lands, not here: the
       // cohort it hit is not known yet, and the whole two-stage rule is a
       // question about that cohort. See `frame()`.
-      if (state.leftPressed) this.selection.select(state.mousePos);
+      if (state.leftClicked) this.selection.select(state.mousePos);
       // Right-click CANCELS AN AIM FIRST, and undoes only when there is no aim
       // to cancel. Right-click is "back out of what I just did", and while a
       // cohort is lit the thing the user just did is light it -- undoing a
@@ -1193,7 +1198,10 @@ export class Orchestrator implements CommandBus {
       // above the one `frame()` opens -- deliberately, because that is what
       // makes a stroke land once per rendered frame instead of once per physics
       // sub-step. `frame()` consumes what this records.
-      const step = strokeFor(state, this.strokePrevUv, (p) => this.mouseFieldUv(p));
+      const drawState = state.middleDragging || state.middlePanning
+        ? { ...state, leftPressed: false, leftDragging: false, rightDragging: false }
+        : state;
+      const step = strokeFor(drawState, this.strokePrevUv, (p) => this.mouseFieldUv(p));
       this.pendingStroke = step.stroke;
       this.strokePrevUv = step.prevUv;
     }
