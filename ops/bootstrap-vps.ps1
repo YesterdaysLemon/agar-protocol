@@ -16,6 +16,7 @@ $sshArgs = @(
     '-o', 'HostKeyAlias=alirezaafshan.com',
     'alirezaafshan.com'
 )
+$transportArgs = $sshArgs[0..3]
 
 if (-not (Test-Path -LiteralPath $localBootstrap)) {
     throw "Missing bootstrap script: $localBootstrap"
@@ -29,7 +30,7 @@ try {
     & gh api "repos/$repo" --silent
     if ($LASTEXITCODE -ne 0) { throw "GitHub repository is not reachable: $repo" }
 
-    & scp -q @($sshArgs[0..3]) $localBootstrap "alirezaafshan.com:$remoteBootstrap"
+    & scp -q @transportArgs $localBootstrap "alirezaafshan.com:$remoteBootstrap"
     if ($LASTEXITCODE -ne 0) { throw 'Could not stage the VPS bootstrap script.' }
 
     & ssh @sshArgs "chmod 700 '$remoteBootstrap' && rm -f '$remoteSecret'"
@@ -60,8 +61,18 @@ try {
         Write-Warning 'Deployment succeeded, but remote staging cleanup needs to be retried.'
     }
 
-    $health = Invoke-RestMethod -Uri $publicHealth -TimeoutSec 20
-    if (-not $health.ok -or $health.app -ne 'agar-protocol') {
+    $health = $null
+    for ($attempt = 1; $attempt -le 30; $attempt++) {
+        try {
+            $health = Invoke-RestMethod -Uri $publicHealth -TimeoutSec 10
+            if ($health.ok -and $health.app -eq 'agar-protocol') { break }
+        }
+        catch {
+            if ($attempt -eq 30) { throw }
+        }
+        Start-Sleep -Seconds 2
+    }
+    if ($null -eq $health -or -not $health.ok -or $health.app -ne 'agar-protocol') {
         throw "Unexpected public health response from $publicHealth"
     }
 
