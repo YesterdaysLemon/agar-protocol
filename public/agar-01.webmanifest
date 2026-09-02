@@ -1,0 +1,24 @@
+{
+  "name": "Agar Protocol",
+  "short_name": "Agar",
+  "description": "Cultivate, isolate, and archive evolving digital lineages.",
+  "id": "./",
+  "start_url": "./",
+  "scope": "./",
+  "icons": [
+    {
+      "src": "agar-app-icon-01-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "agar-app-icon-01-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "theme_color": "#e8eae9",
+  "background_color": "#e8eae9"
+}

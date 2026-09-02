@@ -80,12 +80,7 @@
     </g>
   </g>
 
-  <g fill="#526b78" font-family="Consolas, 'Courier New', monospace" font-size="10" font-weight="700" letter-spacing="2">
-    <text x="705" y="76">CULTURE VESSEL / AP-01</text>
-    <text x="1093" y="84" text-anchor="end">CONTAINMENT ACTIVE</text>
-  </g>
   <g stroke="#526b78" stroke-width="3">
     <path d="M922 51V72M922 558V579M658 315H679M1165 315H1186"/>
   </g>
-  <circle cx="1080" cy="80" r="4" fill="#657866"/>
 </svg>
