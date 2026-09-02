@@ -1,0 +1,193 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1400 900">
+  <defs>
+    <pattern id="board-grid" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M40 0H0V40" fill="none" stroke="#d9dddb" stroke-width="1"/>
+    </pattern>
+
+    <g id="dish">
+      <rect width="64" height="64" rx="10" fill="#eef0ef"/>
+      <circle cx="32" cy="32" r="25.5" fill="#f8f9f8" stroke="#687677" stroke-width="2"/>
+      <circle cx="32" cy="32" r="21.5" fill="#090d0e" stroke="#bec6c3" stroke-width="1"/>
+    </g>
+
+    <path id="spiral-arm" d="M32 32C34 29 37 26 41 25C46 23 51 25 52 29"/>
+    <g id="icon-spiral-bloom">
+      <use href="#dish"/>
+      <g fill="none" stroke="#a8c1ba" stroke-linecap="round" stroke-opacity=".16" stroke-width="8">
+        <use href="#spiral-arm"/>
+        <use href="#spiral-arm" transform="rotate(120 32 32)"/>
+        <use href="#spiral-arm" transform="rotate(240 32 32)"/>
+      </g>
+      <g fill="none" stroke="#dce8e3" stroke-linecap="round" stroke-width="4">
+        <use href="#spiral-arm"/>
+        <use href="#spiral-arm" transform="rotate(120 32 32)"/>
+        <use href="#spiral-arm" transform="rotate(240 32 32)"/>
+      </g>
+      <g stroke="#172326" stroke-width="1.2">
+        <circle cx="52" cy="29" r="3.3" fill="#55baca"/>
+        <circle cx="52" cy="29" r="3.3" fill="#62c5a5" transform="rotate(120 32 32)"/>
+        <circle cx="52" cy="29" r="3.3" fill="#b67ac4" transform="rotate(240 32 32)"/>
+        <circle cx="32" cy="32" r="4.5" fill="#d5e8b5"/>
+      </g>
+    </g>
+
+    <g id="icon-golden-colony">
+      <use href="#dish"/>
+      <g fill="none" stroke-linecap="round">
+        <path d="M32 32Q35 30 39 32M32 32Q28 34 23 39M32 32Q30 25 33 17M32 32Q39 37 43 46M32 32Q23 31 12 29" stroke="#a8c1ba" stroke-opacity=".16" stroke-width="8"/>
+        <path d="M32 32Q35 30 39 32M32 32Q28 34 23 39M32 32Q30 25 33 17M32 32Q39 37 43 46M32 32Q23 31 12 29" stroke="#dce8e3" stroke-width="3.4"/>
+      </g>
+      <g stroke="#172326" stroke-width="1.1">
+        <circle cx="39" cy="32" r="2.3" fill="#d5e8b5"/>
+        <circle cx="23" cy="39" r="2.7" fill="#55baca"/>
+        <circle cx="33" cy="17" r="3" fill="#b67ac4"/>
+        <circle cx="43" cy="46" r="3.4" fill="#62c5a5"/>
+        <circle cx="12" cy="29" r="3.8" fill="#55baca"/>
+        <circle cx="32" cy="32" r="4.2" fill="#d5e8b5"/>
+      </g>
+    </g>
+
+    <g id="icon-helix">
+      <use href="#dish"/>
+      <g transform="rotate(-45 32 32)" fill="none" stroke-linecap="round">
+        <g stroke="#78918e" stroke-width="1.4">
+          <path d="M26 18H38M30 25H34M23 32H41M30 39H34M26 46H38"/>
+        </g>
+        <path d="M23 15C23 24 41 23 41 32C41 41 23 40 23 49" stroke="#dce8e3" stroke-width="3.5"/>
+        <path d="M41 15C41 24 23 23 23 32C23 41 41 40 41 49" stroke="#91b2ad" stroke-width="3.5"/>
+        <g fill="#090d0e" stroke-width="1.1">
+          <circle cx="23" cy="15" r="2.8" fill="#62c5a5" stroke="#172326"/>
+          <circle cx="41" cy="15" r="2.8" fill="#b67ac4" stroke="#172326"/>
+          <circle cx="23" cy="49" r="2.8" fill="#55baca" stroke="#172326"/>
+          <circle cx="41" cy="49" r="2.8" fill="#d5e8b5" stroke="#172326"/>
+        </g>
+      </g>
+    </g>
+
+    <path id="genome-arm-a" d="M30.5 31C33 28 37 25 41 24C46 22.5 50 24 52 27"/>
+    <path id="genome-arm-b" d="M33.5 33C36 31 39 29 43 28C47 27 50 29 51 32"/>
+    <g id="genome-arm">
+      <use href="#genome-arm-a"/>
+      <use href="#genome-arm-b"/>
+      <path d="M36.5 26.2L38.2 29.5M43.2 23.6L44.8 28.1M49.2 23.8L50.7 31" stroke-width="1.05"/>
+    </g>
+    <g id="icon-genome-vortex">
+      <use href="#dish"/>
+      <g fill="none" stroke="#a8c1ba" stroke-linecap="round" stroke-opacity=".14" stroke-width="7">
+        <use href="#genome-arm-a"/><use href="#genome-arm-b"/>
+        <use href="#genome-arm-a" transform="rotate(120 32 32)"/><use href="#genome-arm-b" transform="rotate(120 32 32)"/>
+        <use href="#genome-arm-a" transform="rotate(240 32 32)"/><use href="#genome-arm-b" transform="rotate(240 32 32)"/>
+      </g>
+      <g fill="none" stroke="#dce8e3" stroke-linecap="round" stroke-width="2.25">
+        <use href="#genome-arm"/>
+        <use href="#genome-arm" transform="rotate(120 32 32)"/>
+        <use href="#genome-arm" transform="rotate(240 32 32)"/>
+      </g>
+      <g stroke="#172326" stroke-width="1">
+        <g fill="#55baca"><circle cx="52" cy="27" r="2.4"/><circle cx="51" cy="32" r="2.4"/></g>
+        <g fill="#62c5a5" transform="rotate(120 32 32)"><circle cx="52" cy="27" r="2.4"/><circle cx="51" cy="32" r="2.4"/></g>
+        <g fill="#b67ac4" transform="rotate(240 32 32)"><circle cx="52" cy="27" r="2.4"/><circle cx="51" cy="32" r="2.4"/></g>
+        <circle cx="32" cy="32" r="3.9" fill="#d5e8b5"/>
+      </g>
+    </g>
+
+    <filter id="card-shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="8" stdDeviation="10" flood-color="#263132" flood-opacity=".08"/>
+    </filter>
+  </defs>
+
+  <rect width="1400" height="900" fill="#eef0ef"/>
+  <rect width="1400" height="900" fill="url(#board-grid)" opacity=".75"/>
+
+  <g font-family="Inter, Arial, sans-serif" fill="#172326">
+    <text x="40" y="48" fill="#526b78" font-family="Consolas, 'Courier New', monospace" font-size="12" font-weight="700" letter-spacing="3">AGAR PROTOCOL / ICON STUDY 02</text>
+    <text x="40" y="103" font-size="42" font-weight="650" letter-spacing="-1.4">Emergent marks, tested at specimen scale.</text>
+    <text x="40" y="136" fill="#617073" font-size="17">Four systems. One culture vessel. The small samples are rendered at their actual pixel dimensions.</text>
+  </g>
+  <path d="M40 151H1360" stroke="#aab2af"/>
+
+  <g filter="url(#card-shadow)">
+    <rect x="32" y="170" width="316" height="688" rx="12" fill="#f8f9f8" stroke="#bcc4c1"/>
+    <rect x="372" y="170" width="316" height="688" rx="12" fill="#f8f9f8" stroke="#bcc4c1"/>
+    <rect x="712" y="170" width="316" height="688" rx="12" fill="#f8f9f8" stroke="#bcc4c1"/>
+    <rect x="1052" y="170" width="316" height="688" rx="12" fill="#f8f9f8" stroke="#bcc4c1"/>
+  </g>
+
+  <g font-family="Inter, Arial, sans-serif" fill="#172326">
+    <g>
+      <text x="56" y="203" fill="#526b78" font-family="Consolas, monospace" font-size="11" font-weight="700" letter-spacing="2">AP / 01</text>
+      <text x="56" y="239" font-size="25" font-weight="650">Spiral bloom</text>
+      <text x="56" y="266" fill="#617073" font-size="13.5">Three identical logarithmic arms.</text>
+      <text x="56" y="286" fill="#617073" font-size="13.5">Rotationally balanced, still alive.</text>
+      <svg x="70" y="306" width="240" height="240" viewBox="0 0 64 64"><use href="#icon-spiral-bloom"/></svg>
+      <path d="M56 578H324" stroke="#d2d7d5"/>
+      <text x="56" y="607" fill="#526b78" font-family="Consolas, monospace" font-size="10" font-weight="700" letter-spacing="2">TAB DISTANCE</text>
+      <rect x="56" y="624" width="58" height="58" rx="7" fill="#e7eae8" stroke="#cbd1ce"/>
+      <svg x="69" y="637" width="32" height="32" viewBox="0 0 64 64"><use href="#icon-spiral-bloom"/></svg>
+      <rect x="150" y="624" width="58" height="58" rx="7" fill="#e7eae8" stroke="#cbd1ce"/>
+      <svg x="171" y="645" width="16" height="16" viewBox="0 0 64 64"><use href="#icon-spiral-bloom"/></svg>
+      <text x="72" y="702" fill="#617073" font-size="11">32 px</text><text x="165" y="702" fill="#617073" font-size="11">16 px</text>
+      <text x="56" y="746" fill="#526b78" font-family="Consolas, monospace" font-size="10" font-weight="700" letter-spacing="2">READS AS</text>
+      <text x="56" y="776" font-size="15" font-weight="600">colony / turbine / cell division</text>
+      <text x="56" y="806" fill="#617073" font-size="13">Strongest direct evolution of the</text>
+      <text x="56" y="825" fill="#617073" font-size="13">current branching specimen.</text>
+    </g>
+
+    <g>
+      <text x="396" y="203" fill="#526b78" font-family="Consolas, monospace" font-size="11" font-weight="700" letter-spacing="2">AP / 02</text>
+      <text x="396" y="239" font-size="25" font-weight="650">Golden colony</text>
+      <text x="396" y="266" fill="#617073" font-size="13.5">Spores placed by the golden angle.</text>
+      <text x="396" y="286" fill="#617073" font-size="13.5">Botanical order with global balance.</text>
+      <svg x="410" y="306" width="240" height="240" viewBox="0 0 64 64"><use href="#icon-golden-colony"/></svg>
+      <path d="M396 578H664" stroke="#d2d7d5"/>
+      <text x="396" y="607" fill="#526b78" font-family="Consolas, monospace" font-size="10" font-weight="700" letter-spacing="2">TAB DISTANCE</text>
+      <rect x="396" y="624" width="58" height="58" rx="7" fill="#e7eae8" stroke="#cbd1ce"/>
+      <svg x="409" y="637" width="32" height="32" viewBox="0 0 64 64"><use href="#icon-golden-colony"/></svg>
+      <rect x="490" y="624" width="58" height="58" rx="7" fill="#e7eae8" stroke="#cbd1ce"/>
+      <svg x="511" y="645" width="16" height="16" viewBox="0 0 64 64"><use href="#icon-golden-colony"/></svg>
+      <text x="412" y="702" fill="#617073" font-size="11">32 px</text><text x="505" y="702" fill="#617073" font-size="11">16 px</text>
+      <text x="396" y="746" fill="#526b78" font-family="Consolas, monospace" font-size="10" font-weight="700" letter-spacing="2">READS AS</text>
+      <text x="396" y="776" font-size="15" font-weight="600">phyllotaxis / lineage / growth</text>
+      <text x="396" y="806" fill="#617073" font-size="13">Most naturally emergent; intentionally</text>
+      <text x="396" y="825" fill="#617073" font-size="13">less emblematic at sixteen pixels.</text>
+    </g>
+
+    <g>
+      <text x="736" y="203" fill="#526b78" font-family="Consolas, monospace" font-size="11" font-weight="700" letter-spacing="2">AP / 03</text>
+      <text x="736" y="239" font-size="25" font-weight="650">Helix specimen</text>
+      <text x="736" y="266" fill="#617073" font-size="13.5">A clinical double helix at 45°.</text>
+      <text x="736" y="286" fill="#617073" font-size="13.5">Immediate genetic meaning.</text>
+      <svg x="750" y="306" width="240" height="240" viewBox="0 0 64 64"><use href="#icon-helix"/></svg>
+      <path d="M736 578H1004" stroke="#d2d7d5"/>
+      <text x="736" y="607" fill="#526b78" font-family="Consolas, monospace" font-size="10" font-weight="700" letter-spacing="2">TAB DISTANCE</text>
+      <rect x="736" y="624" width="58" height="58" rx="7" fill="#e7eae8" stroke="#cbd1ce"/>
+      <svg x="749" y="637" width="32" height="32" viewBox="0 0 64 64"><use href="#icon-helix"/></svg>
+      <rect x="830" y="624" width="58" height="58" rx="7" fill="#e7eae8" stroke="#cbd1ce"/>
+      <svg x="851" y="645" width="16" height="16" viewBox="0 0 64 64"><use href="#icon-helix"/></svg>
+      <text x="752" y="702" fill="#617073" font-size="11">32 px</text><text x="845" y="702" fill="#617073" font-size="11">16 px</text>
+      <text x="736" y="746" fill="#526b78" font-family="Consolas, monospace" font-size="10" font-weight="700" letter-spacing="2">READS AS</text>
+      <text x="736" y="776" font-size="15" font-weight="600">DNA / specimen / protocol</text>
+      <text x="736" y="806" fill="#617073" font-size="13">Best semantic recognition, but less</text>
+      <text x="736" y="825" fill="#617073" font-size="13">specific to digital-life behavior.</text>
+    </g>
+
+    <g>
+      <text x="1076" y="203" fill="#526b78" font-family="Consolas, monospace" font-size="11" font-weight="700" letter-spacing="2">AP / 04</text>
+      <text x="1076" y="239" font-size="25" font-weight="650">Genome vortex</text>
+      <text x="1076" y="266" fill="#617073" font-size="13.5">Paired strands form three spiral arms.</text>
+      <text x="1076" y="286" fill="#617073" font-size="13.5">The two ideas hybridized.</text>
+      <svg x="1090" y="306" width="240" height="240" viewBox="0 0 64 64"><use href="#icon-genome-vortex"/></svg>
+      <path d="M1076 578H1344" stroke="#d2d7d5"/>
+      <text x="1076" y="607" fill="#526b78" font-family="Consolas, monospace" font-size="10" font-weight="700" letter-spacing="2">TAB DISTANCE</text>
+      <rect x="1076" y="624" width="58" height="58" rx="7" fill="#e7eae8" stroke="#cbd1ce"/>
+      <svg x="1089" y="637" width="32" height="32" viewBox="0 0 64 64"><use href="#icon-genome-vortex"/></svg>
+      <rect x="1170" y="624" width="58" height="58" rx="7" fill="#e7eae8" stroke="#cbd1ce"/>
+      <svg x="1191" y="645" width="16" height="16" viewBox="0 0 64 64"><use href="#icon-genome-vortex"/></svg>
+      <text x="1092" y="702" fill="#617073" font-size="11">32 px</text><text x="1185" y="702" fill="#617073" font-size="11">16 px</text>
+      <text x="1076" y="746" fill="#526b78" font-family="Consolas, monospace" font-size="10" font-weight="700" letter-spacing="2">READS AS</text>
+      <text x="1076" y="776" font-size="15" font-weight="600">genome / vortex / replication</text>
+      <text x="1076" y="806" fill="#617073" font-size="13">Most ownable silhouette; paired detail</text>
+      <text x="1076" y="825" fill="#617073" font-size="13">collapses gracefully into one glyph.</text>
+    </g>
+  </g>
+</svg>
