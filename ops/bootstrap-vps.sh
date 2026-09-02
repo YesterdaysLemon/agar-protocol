@@ -44,6 +44,23 @@ for path in "${APPS_FILE}" "${MANAGER_ENV_FILE}" "${CADDY_FILE}" "${DEPLOY_RUNNE
   }
 done
 
+wait_for_http() {
+  local url="$1"
+  local attempts="$2"
+  local sleep_seconds="$3"
+  local attempt
+
+  for ((attempt = 1; attempt <= attempts; attempt++)); do
+    if curl --fail --silent --show-error --max-time 5 "${url}" >/dev/null 2>&1; then
+      return 0
+    fi
+    sleep "${sleep_seconds}"
+  done
+
+  echo "bootstrap-vps: timed out waiting for ${url}" >&2
+  return 1
+}
+
 id "${REPO_USER}" >/dev/null 2>&1 || {
   echo "bootstrap-vps: repository user does not exist: ${REPO_USER}" >&2
   exit 67
@@ -197,7 +214,11 @@ install -o root -g root -m "$(stat -c '%a' "${CADDY_FILE}")" \
   "${stage_dir}/Caddyfile" "${CADDY_FILE}"
 
 systemctl restart deploy-manager
-curl --fail --silent --show-error --max-time 5 http://127.0.0.1:9019/healthz >/dev/null
+if ! wait_for_http "http://127.0.0.1:9019/healthz" 30 1; then
+  systemctl status deploy-manager --no-pager -l >&2 || true
+  journalctl -u deploy-manager --since '-2 minutes' --no-pager -n 80 >&2 || true
+  exit 70
+fi
 systemctl reload caddy
 
 "${DEPLOY_RUNNER}" "${APP_ID}" "${deploy_sha}"
