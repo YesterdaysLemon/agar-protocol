@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <pattern id="grid" width="48" height="48" patternUnits="userSpaceOnUse">
+      <path d="M48 0H0V48" fill="none" stroke="#cbd1ce" stroke-width="1"/>
+    </pattern>
+    <filter id="shadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="9" stdDeviation="11" flood-color="#252d2d" flood-opacity=".2"/>
+    </filter>
+    <filter id="glow" x="-100%" y="-100%" width="300%" height="300%">
+      <feGaussianBlur stdDeviation="7" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+  <rect width="512" height="512" fill="#eef0ef"/>
+  <rect width="512" height="512" fill="url(#grid)" opacity=".5"/>
+  <rect x="18" y="18" width="476" height="476" rx="48" fill="none" stroke="#aab2af" stroke-width="2"/>
+  <g filter="url(#shadow)">
+    <circle cx="256" cy="256" r="174" fill="#f8f9f8" stroke="#687677" stroke-width="7"/>
+    <circle cx="256" cy="256" r="151" fill="#090d0e" stroke="#c3cac7" stroke-width="3"/>
+  </g>
+  <g fill="none" stroke-linecap="round">
+    <path d="M170 354C215 331 210 273 257 250C298 230 307 181 332 139M257 250C302 265 335 298 365 350" stroke="#b5c6c0" stroke-opacity=".27" stroke-width="30" filter="url(#glow)"/>
+    <path d="M170 354C215 331 210 273 257 250C298 230 307 181 332 139M257 250C302 265 335 298 365 350" stroke="#dbe7e1" stroke-width="13"/>
+  </g>
+  <g stroke="#152022" stroke-width="5" filter="url(#glow)">
+    <circle cx="170" cy="354" r="19" fill="#62c5a5"/>
+    <circle cx="257" cy="250" r="24" fill="#d8e8b4"/>
+    <circle cx="332" cy="139" r="19" fill="#b77bc4"/>
+    <circle cx="365" cy="350" r="19" fill="#56bbca"/>
+  </g>
+  <g fill="#c9d3cf" opacity=".58">
+    <circle cx="150" cy="215" r="4"/><circle cx="193" cy="163" r="3"/>
+    <circle cx="351" cy="224" r="4"/><circle cx="302" cy="373" r="3"/>
+    <circle cx="143" cy="302" r="2.5"/><circle cx="389" cy="271" r="3"/>
+  </g>
+  <g stroke="#526b78" stroke-width="5">
+    <path d="M256 58V82M256 430V454M58 256H82M430 256H454"/>
+  </g>
+  <g fill="#526b78" font-family="Consolas, monospace" font-size="12" font-weight="700" letter-spacing="2">
+    <text x="43" y="55">AP</text><text x="421" y="466">01</text>
+  </g>
+</svg>

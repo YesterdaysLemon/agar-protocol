@@ -1,0 +1,91 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630">
+  <defs>
+    <pattern id="grid" width="32" height="32" patternUnits="userSpaceOnUse">
+      <path d="M32 0H0V32" fill="none" stroke="#cfd4d2" stroke-width="1"/>
+    </pattern>
+    <radialGradient id="dish" cx="45%" cy="40%" r="65%">
+      <stop offset="0" stop-color="#162021"/><stop offset=".62" stop-color="#090d0e"/><stop offset="1" stop-color="#020405"/>
+    </radialGradient>
+    <radialGradient id="colonyA">
+      <stop offset="0" stop-color="#efffcf"/><stop offset=".34" stop-color="#a5d889"/><stop offset=".72" stop-color="#62c5a5"/><stop offset="1" stop-color="#62c5a5" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="colonyB">
+      <stop offset="0" stop-color="#ffddff"/><stop offset=".36" stop-color="#d890dc"/><stop offset=".72" stop-color="#8551ba"/><stop offset="1" stop-color="#8551ba" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="colonyC">
+      <stop offset="0" stop-color="#d5ffff"/><stop offset=".36" stop-color="#70d8d0"/><stop offset=".72" stop-color="#36a5bc"/><stop offset="1" stop-color="#36a5bc" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="plateShadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="18" stdDeviation="20" flood-color="#222a2a" flood-opacity=".22"/>
+    </filter>
+    <filter id="glow" x="-100%" y="-100%" width="300%" height="300%">
+      <feGaussianBlur stdDeviation="9" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <clipPath id="dishClip"><circle cx="922" cy="315" r="224"/></clipPath>
+  </defs>
+
+  <rect width="1200" height="630" fill="#e8eae9"/>
+  <rect width="1200" height="630" fill="url(#grid)" opacity=".52"/>
+  <path d="M0 72H1200M0 558H1200" stroke="#b8bfbc"/>
+  <path d="M58 0V630M676 0V630" stroke="#d0d5d3"/>
+
+  <g fill="#596463" font-family="Consolas, 'Courier New', monospace">
+    <text x="84" y="116" font-size="13" font-weight="700" letter-spacing="3">BIOCOMPUTATION / CULTURE NODE 01</text>
+    <text x="84" y="228" fill="#202627" font-family="Arial, sans-serif" font-size="76" font-weight="700" letter-spacing="9">AGAR</text>
+    <text x="84" y="302" fill="#202627" font-family="Arial, sans-serif" font-size="76" font-weight="300" letter-spacing="9">PROTOCOL</text>
+    <path d="M86 336H558" stroke="#697675" stroke-width="2"/>
+    <text x="84" y="386" fill="#526b78" font-family="Arial, sans-serif" font-size="26" font-weight="700" letter-spacing="1">Cultivate. Isolate. Archive.</text>
+    <text x="84" y="425" font-family="Arial, sans-serif" font-size="17">Evolving digital lineages in a sealed WebGPU petri dish.</text>
+    <g font-size="11" font-weight="700" letter-spacing="2">
+      <rect x="84" y="466" width="93" height="31" fill="#f4f6f5" stroke="#9fa8a5"/>
+      <text x="104" y="486">WEBGPU</text>
+      <rect x="190" y="466" width="132" height="31" fill="#f4f6f5" stroke="#9fa8a5"/>
+      <text x="207" y="486">SEALED FIELD</text>
+      <rect x="335" y="466" width="62" height="31" fill="#f4f6f5" stroke="#9fa8a5"/>
+      <text x="351" y="486">MIT</text>
+    </g>
+    <text x="84" y="592" font-size="11" font-weight="700" letter-spacing="2.3">AGAR.ALIREZAAFSHAN.COM</text>
+    <text x="1115" y="592" text-anchor="end" font-size="10" letter-spacing="1.8">EXPERIMENTAL DIGITAL LIFE LAB</text>
+  </g>
+
+  <g filter="url(#plateShadow)">
+    <circle cx="922" cy="315" r="250" fill="#f7f8f7" stroke="#687574" stroke-width="3"/>
+    <circle cx="922" cy="315" r="234" fill="none" stroke="#c2c9c6" stroke-width="7"/>
+    <circle cx="922" cy="315" r="224" fill="url(#dish)" stroke="#252d2e" stroke-width="4"/>
+  </g>
+
+  <g clip-path="url(#dishClip)">
+    <g fill="none" stroke-linecap="round" filter="url(#glow)">
+      <path d="M778 435C828 405 819 350 871 325C920 302 929 242 960 176" stroke="#70c7a9" stroke-opacity=".28" stroke-width="38"/>
+      <path d="M871 325C925 341 974 383 1036 430" stroke="#4dbfd1" stroke-opacity=".27" stroke-width="35"/>
+      <path d="M884 315C929 291 984 297 1057 271" stroke="#b77bc4" stroke-opacity=".22" stroke-width="30"/>
+      <path d="M778 435C828 405 819 350 871 325C920 302 929 242 960 176" stroke="#d9e7dd" stroke-width="9"/>
+      <path d="M871 325C925 341 974 383 1036 430" stroke="#d9e7dd" stroke-width="8"/>
+      <path d="M884 315C929 291 984 297 1057 271" stroke="#e1d9e5" stroke-width="7"/>
+    </g>
+    <g filter="url(#glow)">
+      <circle cx="778" cy="435" r="31" fill="url(#colonyA)"/>
+      <circle cx="871" cy="325" r="39" fill="url(#colonyA)"/>
+      <circle cx="960" cy="176" r="31" fill="url(#colonyB)"/>
+      <circle cx="1036" cy="430" r="32" fill="url(#colonyC)"/>
+      <circle cx="1057" cy="271" r="27" fill="url(#colonyB)"/>
+    </g>
+    <g fill="#d9e7e0" opacity=".62">
+      <circle cx="750" cy="257" r="3"/><circle cx="791" cy="211" r="5"/>
+      <circle cx="835" cy="163" r="2.5"/><circle cx="1049" cy="204" r="4"/>
+      <circle cx="1090" cy="338" r="3"/><circle cx="991" cy="498" r="4"/>
+      <circle cx="856" cy="474" r="2.5"/><circle cx="731" cy="353" r="4"/>
+      <circle cx="1002" cy="340" r="2"/><circle cx="904" cy="208" r="3"/>
+    </g>
+  </g>
+
+  <g fill="#526b78" font-family="Consolas, 'Courier New', monospace" font-size="10" font-weight="700" letter-spacing="2">
+    <text x="705" y="76">CULTURE VESSEL / AP-01</text>
+    <text x="1093" y="84" text-anchor="end">CONTAINMENT ACTIVE</text>
+  </g>
+  <g stroke="#526b78" stroke-width="3">
+    <path d="M922 51V72M922 558V579M658 315H679M1165 315H1186"/>
+  </g>
+  <circle cx="1080" cy="80" r="4" fill="#657866"/>
+</svg>
