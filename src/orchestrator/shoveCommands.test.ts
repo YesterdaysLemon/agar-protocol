@@ -36,6 +36,7 @@ const CTX: ShoveContext = {
   canvasSize: [1024, 1024],
   pan: [0, 0],
   zoom: 1,
+  rotation: 0,
   physicsSteps: 30,
   drawPower: 1.0,
   drawSize: 0.031,

@@ -27,6 +27,7 @@ const VIEW: CameraView = {
   windowSize: [1920, 1080],
   pan: [0.25, -0.5],
   zoom: 2.5,
+  rotation: 0.375,
 };
 
 test('every camera struct is 16-byte aligned', () => {
@@ -67,7 +68,7 @@ test('the View block carries both resolutions, pan and zoom', () => {
   assert.equal(f32[4], 0.25, 'pan x');
   assert.equal(f32[5], -0.5, 'pan y');
   assert.equal(f32[6], 2.5, 'zoom');
-  assert.equal(f32[7], 0, 'reserved lane must be zero');
+  assert.equal(f32[7], VIEW.rotation, 'camera.w must carry dish rotation');
 });
 
 test('camBrush carries the sprite constants and the colour settings', () => {

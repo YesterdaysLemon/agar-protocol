@@ -153,7 +153,7 @@ function fencesOr(raw: Record<string, unknown>, key: string, where: string): boo
  * physics quirk rather than an error, so an out-of-range value must be loud.
  */
 function asBoundaryCondition(value: number, where: string): BoundaryCondition {
-  const valid: readonly number[] = [BC.BOUNCE, BC.WRAP, BC.RESET];
+  const valid: readonly number[] = [BC.BOUNCE, BC.DISH, BC.RESET];
   if (!valid.includes(value)) {
     throw new ConfigFormatError(`${where}: boundary_conditions ${value} is not a BC_* mode`);
   }
@@ -285,10 +285,11 @@ export function fromDocument(data: unknown, where = 'config'): SavedConfig {
   const world = makeWorldSettings({
     trailPersistence: num(worldRaw, 'trail_persistence', where),
     trailDiffusion: num(worldRaw, 'trail_diffusion', where),
-    // Added after the format shipped: files without it predate selectable
-    // boundaries, and wrap is what they ran (`persistence.py:205-207`).
+    // Added after the format shipped. In this fork the historical slot 1 is a
+    // circular dish, so documents without the field enter the same contained
+    // vessel as old documents that explicitly stored upstream's value 1.
     boundaryConditions: asBoundaryCondition(
-      numOr(worldRaw, 'boundary_conditions', BC.WRAP, where),
+      numOr(worldRaw, 'boundary_conditions', BC.DISH, where),
       where,
     ),
   });

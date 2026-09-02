@@ -1575,8 +1575,7 @@ export class MutationOverlay {
       // spare. Broken at the natural phrase boundary rather than by ellipsis.
       this.commitButton.textContent = suppressForTouch
         ? 'Generate\nchildren'
-        : 'Generate children from selected cohort' +
-          keySuffix([enter, 'Left click cohort again']);
+        : 'Generate descendants from selected cohort' + keySuffix([enter]);
     }
     this.commitButton.style.display = commit ? 'inline-flex' : 'none';
 

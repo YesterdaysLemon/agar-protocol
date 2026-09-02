@@ -175,6 +175,7 @@ export function packFrameAssemblyUniforms(
   f32[4] = view.pan[0];
   f32[5] = view.pan[1];
   f32[6] = view.zoom;
+  f32[7] = view.rotation;
 
   // tone: x bloom_intensity, y brightness, z tonemap_softness, w field_opacity
   const bloomOn = prefs.bloomEnabled && prefs.bloomIntensity > 0.0 && bloomAvailable;

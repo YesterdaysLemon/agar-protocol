@@ -81,19 +81,22 @@ fn vs_main(@builtin(vertex_index) vi : u32) -> VsOut {
     return out;
 }
 
-// The diffusion stencil reaches one texel past the edge, so it has to obey the
-// same boundary the particles do: wrap across the seam only in BC_WRAP,
-// otherwise clamp so trails stop at the wall instead of bleeding through it.
+// The diffusion stencil reaches beyond the current texel, so it has to obey the
+// same boundary the particles do. This fork never wraps. In dish mode samples
+// beyond the circular rim are empty, so trails stop at the glass instead of
+// smearing around it or leaking across an opposite edge.
 //
 // This is the INLINED getCan (canvas.frag:18-22) -- the sampler parameter is
-// gone, per the header. Note the sampler's OWN address mode is set to match by
-// the host (`_apply_boundary_sampling`); these are two layers of one decision
-// and must not disagree (invariant 9).
+// gone, per the header. The host now supplies only an edge-clamped sampler;
+// the explicit circular test above is what turns that rectangular texture edge
+// into the vessel's actual wall.
 fn get_can(p: vec2f) -> vec4f {
-    var uv = clamp(p, vec2f(0.0), vec2f(1.0));
-    if (world_boundary_conditions(u.world) == BC_WRAP) {
-        uv = fract(p);
+    let res = vec2f(textureDimensions(canvas_texture, 0));
+    if (world_boundary_conditions(u.world) == BC_DISH
+        && !world_in_dish(uv_to_world(p, res), res)) {
+        return vec4f(0.0);
     }
+    let uv = clamp(p, vec2f(0.0), vec2f(1.0));
     return textureSampleLevel(canvas_texture, canvas_sampler, uv, 0.0);
 }
 
@@ -119,6 +122,15 @@ fn fs_main(in: VsOut) -> @location(0) vec4f {
     // host does nothing but set frame_count to 0, and this line is what
     // actually erases the canvas (see particle_system.py:259-275).
     if (frame_count() == 0) { return vec4f(0.0, 0.0, 0.0, 0.0); }
+
+    // The backing texture remains rectangular, but the culture medium does not.
+    // Clear its exterior every step so bloom, diffusion and captures all see the
+    // exact same vessel the particle boundary uses.
+    let res = vec2f(textureDimensions(canvas_texture, 0));
+    if (world_boundary_conditions(u.world) == BC_DISH
+        && !world_in_dish(uv_to_world(in.uv, res), res)) {
+        return vec4f(0.0);
+    }
 
     var canvas_color : vec4f;
     var TRAIL_DIFFUSION = clamp(world_trail_diffusion(u.world), 0.001, 1.0);

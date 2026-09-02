@@ -184,6 +184,14 @@ export interface CheckpointView {
   readonly key: number;
 }
 
+/** A single live lineage, copied only when the specimen shelf asks for it. */
+export interface SpecimenSnapshot {
+  readonly projectName: string;
+  readonly generation: number;
+  /** Canonical v8 document containing the selected config and current world. */
+  readonly document: unknown;
+}
+
 /**
  * Every command the UI can issue.
  *
@@ -326,6 +334,8 @@ export type Command =
    * dispatched.
    */
   | { readonly kind: 'loadSharedConfig'; readonly saved: SavedConfig; readonly name: string }
+  /** Replace the dish with one independently configured population per jar. */
+  | { readonly kind: 'seedSpecimenArena'; readonly saved: SavedConfig; readonly name: string }
   | { readonly kind: 'clearSaveError' }
   // --- config clipboard: in-session checkpoints ---
   | { readonly kind: 'setCheckpoint' }
@@ -428,6 +438,8 @@ export interface Status {
   readonly preset: string;
   readonly entityCount: number;
   readonly frameCount: number;
+  /** Successful selection commits since this page load. */
+  readonly lineageGeneration: number;
   /**
    * Whether the selected config's rule is the all-zero sentinel -- i.e. its
    * behaviour is GENERATED from `mutationSeed` rather than mutated from an
@@ -746,6 +758,9 @@ export interface CommandBus {
    * these bytes mean and this is only the thing that carries them.
    */
   projectDocument(): unknown;
+
+  /** The selected config alone, for a shelf capture. Built only on demand. */
+  specimenSnapshot(): SpecimenSnapshot;
 
   /**
    * The live editor preferences.

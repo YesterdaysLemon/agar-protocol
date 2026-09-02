@@ -70,10 +70,9 @@
 
 // --- bindings --------------------------------------------------------------
 // Group 0 is the simulation state; group 1 is the textures. They are split
-// because the TEXTURE group is what swaps: the canvas is double-buffered, and
-// the sampler's address mode follows the boundary mode (WebGPU samplers are
-// immutable, so switching Wrap/Bounce means switching bind groups). Keeping the
-// buffers out of that group means they are bound once.
+// because the TEXTURE group swaps with the double-buffered canvas. This fork
+// has one edge-clamped sampler for every boundary mode; keeping the buffers out
+// of the swapping group still means they are bound once.
 //
 // Bindings 0 and 1 are fixed project-wide -- see the table in common.wgsl.
 
@@ -155,14 +154,14 @@ fn pR(p: vec2f, a: f32) -> vec2f {
     return cos(a) * p + sin(a) * vec2f(p.y, -p.x);
 }
 
-// Convert p from worldspace to texture coords and retrieve canvas.
-// The boundary mode decides what a sensor reaching past the edge sees: in
-// BC_WRAP the sampler repeats and it reads the far side; otherwise it clamps
-// and reads the edge, because in those modes the far side is not adjacent.
+// Convert p from worldspace to texture coords and retrieve canvas. No boundary
+// in this fork is periodic. The circular dish additionally treats everything
+// beyond its visible rim as empty medium rather than smearing the last texel.
 fn get_can(p: vec2f, bc: i32) -> vec4f {
     // The GLSL calls textureSize() here, twice per invocation. Hoisted to the
     // uniform -- see the header of uniforms.ts.
     let res = canvas_res();
+    if (bc == BC_DISH && !world_in_dish(p, res)) { return vec4f(0.0); }
     // Stored values ride CANVAS_VALUE_SCALE above their physical meaning (an
     // fp16 range fix -- see common.wgsl); divide it back out so the sensors
     // see the same magnitudes they always did. The clamp guards against a
@@ -178,12 +177,12 @@ fn get_can(p: vec2f, bc: i32) -> vec4f {
            / CANVAS_VALUE_SCALE;
 }
 
-// Read the painted strafe field at a world position, honoring the boundary mode
-// for the same reason get_can does: past the edge, wrap reads the far side and
-// every other mode reads the edge.
+// Read the painted strafe field at a world position. The field is inert beyond
+// the circular wall, so a stroke outside the vessel cannot pull through it.
 fn get_strafe_field(p: vec2f, bc: i32) -> vec2f {
     if (!strafe_field_active()) { return vec2f(0.0); }
     let res = u.canvas_res.zw;
+    if (bc == BC_DISH && !world_in_dish(p, canvas_res())) { return vec2f(0.0); }
     return textureSampleLevel(strafe_field_texture, strafe_field_sampler,
                               world_to_uv_bc(p, res, bc), 0.0).rg;
 }
@@ -199,8 +198,7 @@ fn get_strafe_field(p: vec2f, bc: i32) -> vec2f {
 //
 // Deliberately NOT boundary-aware, unlike the two readers above. Those sample a
 // texture, where past the edge has to mean something; this is a distance to a
-// point the user is pointing at. In BC_WRAP a shove near the edge does not
-// reach around to the far side, because the cursor is not there.
+// point the user is pointing at. The vessel response is applied after the shove.
 const SHOVE_MULTIPLIER: f32 = 8.0;
 fn get_shove(p: vec2f) -> vec2f {
     let shove_strength = u.shove.z;
@@ -239,12 +237,13 @@ fn safenorm(p: vec2f) -> vec2f {
 // a shared function cannot name a binding that the two including shaders
 // qualify differently -- so every call below passes arrayLength(&entities).
 
-// Decide which ConfigData slot an entity uses. Phase 1 puts everyone on slot 0,
-// which is behavior-identical to the old single-uniform setup. To split the
-// population across configs, this is the one place to change: assign by index
-// (cohort-style), by position, or however the feature calls for.
+// Decide which ConfigData slot an entity uses. Contiguous, equal-size ranges
+// make every saved specimen a real population in a mixed arena. With one config
+// the expression is identically zero, preserving the original simulation.
 fn assign_config_index(index: u32) -> i32 {
-    return 0;
+    let config_count = u32(max(1, world_config_count(u.world)));
+    let entity_count = max(1u, arrayLength(&entities));
+    return i32(min(config_count - 1u, (index * config_count) / entity_count));
 }
 
 // Where an entity starts, per the config's initial-conditions mode.
@@ -288,7 +287,19 @@ fn initial_position(index: u32, config: ConfigData) -> vec2f {
     let cohorts = max(1, cfg_cohorts(config));
 
     if (mode == IC_GRID) {
-        let cells = grid_cells(cohorts, extent);
+        // A specimen arena gives each config one cohort. Treat those configs as
+        // the grid cells so the parent populations begin as separate inocula
+        // rather than several perfectly overlapping clouds. The one-config path
+        // remains the original cohort layout.
+        let config_count = max(1, world_config_count(u.world));
+        let mixed_specimens = config_count > 1 && cohorts == 1;
+        let layout_count = select(cohorts, config_count, mixed_specimens);
+        let layout_index = select(
+            floor(cohort_val),
+            f32(assign_config_index(index)),
+            mixed_specimens,
+        );
+        let cells = grid_cells(layout_count, extent);
         let cols = cells.x;
         // GLSL's mod() is floored and WGSL's `%` is truncated, so they are NOT
         // interchangeable in general. They agree here because floor(cohort_val)
@@ -296,13 +307,22 @@ fn initial_position(index: u32, config: ConfigData) -> vec2f {
         // quotient of non-negatives -- and cols >= 1.0. That is what makes `%`
         // safe; if cohort_val could go negative this would need a floored mod.
         // (Same reasoning, same wording, as edge_fold in common.wgsl.)
-        let cell = vec2f(floor(cohort_val) % cols, floor(floor(cohort_val) / cols));
+        let cell = vec2f(layout_index % cols, floor(layout_index / cols));
         pos += (cell + 0.5) / cells * 2.0 * extent - extent;
     }
     else if (mode == IC_RANDOM) {
-        // Scattered across the whole world. Note this ASSIGNS rather than adds:
-        // the jitter above is discarded in this mode.
-        pos = (vec2f(hash(vec2f(cohort_val, 1.0)), hash(vec2f(cohort_val, 2.0))) * 2.0 - 1.0) * extent;
+        // Uniform over the dish's AREA (sqrt on the radius), rather than over a
+        // rectangle whose corners would immediately be projected onto the rim.
+        // The compatibility box modes retain the upstream rectangular scatter.
+        if (world_boundary_conditions(u.world) == BC_DISH) {
+            let angle = hash(vec2f(cohort_val, 1.0)) * 2.0 * PI;
+            let radius = sqrt(hash(vec2f(cohort_val, 2.0)))
+                       * world_dish_radius(canvas_res()) * 0.90;
+            pos = vec2f(cos(angle), sin(angle)) * radius;
+        }
+        else {
+            pos = (vec2f(hash(vec2f(cohort_val, 1.0)), hash(vec2f(cohort_val, 2.0))) * 2.0 - 1.0) * extent;
+        }
     }
     else if (mode == IC_RING) {
         let angle = cohort_val / f32(cohorts) * 2.0 * PI;
@@ -311,6 +331,9 @@ fn initial_position(index: u32, config: ConfigData) -> vec2f {
     // IC_CENTER: the bare jitter, which is what this app did before the mode
     // was selectable. Kept as a real mode so that look stays reachable.
 
+    if (world_boundary_conditions(u.world) == BC_DISH) {
+        pos = world_project_into_dish(pos, canvas_res(), 0.90);
+    }
     return pos;
 }
 
@@ -654,8 +677,10 @@ fn main(@builtin(global_invocation_id) gid: vec3u) {
 
     // Boundary conditions, applied last: after every force, both integrations,
     // and the fence. A world property, so it comes from WorldData.
-    if (bc == BC_WRAP) {
-        pos = world_wrap(pos, canvas_resolution);
+    if (bc == BC_DISH) {
+        let bounced = world_dish_bounce(pos, vel, canvas_resolution);
+        pos = bounced.pos;
+        vel = bounced.vel;
     }
     else if (bc == BC_BOUNCE) {
         // world_bounce took `inout` p and v in GLSL; common.wgsl returns the

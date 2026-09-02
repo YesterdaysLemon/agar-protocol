@@ -248,11 +248,19 @@ export function radiusPxToWorld(
   canvasSize: CanvasSize,
   pan: Vec2,
   zoom: number,
+  rotation = 0.0,
 ): number {
   const center: Vec2 = [windowSize[0] / 2.0, windowSize[1] / 2.0];
-  const a = screenToWorld(center, windowSize, canvasSize, pan, zoom);
-  const b = screenToWorld([center[0] + radiusPx, center[1]], windowSize, canvasSize, pan, zoom);
-  return Math.abs(b[0] - a[0]);
+  const a = screenToWorld(center, windowSize, canvasSize, pan, zoom, rotation);
+  const b = screenToWorld(
+    [center[0] + radiusPx, center[1]],
+    windowSize,
+    canvasSize,
+    pan,
+    zoom,
+    rotation,
+  );
+  return Math.hypot(b[0] - a[0], b[1] - a[1]);
 }
 
 // ---------------------------------------------------------------------------

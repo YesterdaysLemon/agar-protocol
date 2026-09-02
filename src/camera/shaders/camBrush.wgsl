@@ -18,7 +18,7 @@
 
 struct CamBrushUniforms {
     canvas_res : vec4f,   // xy: canvas size   zw: window size
-    camera     : vec4f,   // xy: pan   z: zoom   w: reserved
+    camera     : vec4f,   // xy: pan   z: zoom   w: rotation
     // x: sprite_size   y: particle_alpha   z: color_sensitivity   w: reserved
     sprite     : vec4f,
     // x: color_by_cohort(i)   y: highlighted cohort (< 0 = none)   zw: reserved
@@ -138,7 +138,7 @@ fn vs_main(@builtin(vertex_index) vertex_id : u32,
     var out : VsOut;
     out.clip = vec4f(
         world_to_screen_ndc(vertex_pos, u.canvas_res.xy, u.canvas_res.zw,
-                            u.camera.xy, u.camera.z),
+                            u.camera.xy, u.camera.z, u.camera.w),
         0.0, 1.0);
     out.uv = uv_coords[vertex_id];
     out.pos_vel = vec4f(entity_pos, entity_vel);

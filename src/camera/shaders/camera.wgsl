@@ -15,7 +15,7 @@ const CANVAS_GAIN: f32 = 24.0;
 
 struct CameraViewUniforms {
     canvas_res : vec4f,   // xy: canvas size   zw: window size
-    camera     : vec4f,   // xy: pan   z: zoom   w: reserved
+    camera     : vec4f,   // xy: pan   z: zoom   w: rotation
     flags      : vec4f,   // reserved; TRAIL has no int state
 }
 
@@ -44,7 +44,7 @@ fn hsv2rgb(c: vec3f) -> vec3f {
 fn fs_main(in: FsQuadVsOut) -> @location(0) vec4f {
     let ndc = in.uv * 2.0 - 1.0;
     let canvas_uv = screen_ndc_to_canvas_uv(ndc, u.canvas_res.xy, u.canvas_res.zw,
-                                            u.camera.xy, u.camera.z);
+                                            u.camera.xy, u.camera.z, u.camera.w);
 
     // Outside the canvas: letterbox bar (window aspect != canvas aspect) or
     // panned/zoomed past the world edge. Paint it black rather than clamping,

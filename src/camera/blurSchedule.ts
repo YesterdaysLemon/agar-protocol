@@ -162,6 +162,7 @@ export function pauseSettleSchedule(physicsSteps: number): {
 export interface SettledView {
   readonly pan: readonly [number, number];
   readonly zoom: number;
+  readonly rotation: number;
   readonly mode: CameraMode;
 }
 
@@ -186,6 +187,7 @@ export function settledViewMatches(a: SettledView | null, b: SettledView): boole
     a.pan[0] === b.pan[0] &&
     a.pan[1] === b.pan[1] &&
     a.zoom === b.zoom &&
+    a.rotation === b.rotation &&
     a.mode === b.mode
   );
 }

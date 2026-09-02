@@ -235,12 +235,14 @@ test('degenerate rates cannot break the settle frame', () => {
 
 // --- holding the settled still against camera movement ---------------------
 
-const VIEW: SettledView = { pan: [1.5, -2.25], zoom: 3, mode: 'particles' };
+const VIEW: SettledView = { pan: [1.5, -2.25], zoom: 3, rotation: 0.4, mode: 'particles' };
 
 test('an unmoved camera keeps the settled still', () => {
   // A fresh object with equal values, because the frame loop rebuilds the
   // snapshot every frame rather than holding the camera's own state.
-  assert.ok(settledViewMatches(VIEW, { pan: [1.5, -2.25], zoom: 3, mode: 'particles' }));
+  assert.ok(
+    settledViewMatches(VIEW, { pan: [1.5, -2.25], zoom: 3, rotation: 0.4, mode: 'particles' }),
+  );
 });
 
 test('ANY camera movement abandons the settled still', () => {
@@ -249,10 +251,11 @@ test('ANY camera movement abandons the settled still', () => {
   // picture of one viewpoint and cannot be re-rendered from another. Pan, zoom
   // and mode each independently make it a picture of the wrong place.
   const moved: readonly SettledView[] = [
-    { pan: [1.5000001, -2.25], zoom: 3, mode: 'particles' },
-    { pan: [1.5, -2.2500001], zoom: 3, mode: 'particles' },
-    { pan: [1.5, -2.25], zoom: 3.0000001, mode: 'particles' },
-    { pan: [1.5, -2.25], zoom: 3, mode: 'trail' },
+    { pan: [1.5000001, -2.25], zoom: 3, rotation: 0.4, mode: 'particles' },
+    { pan: [1.5, -2.2500001], zoom: 3, rotation: 0.4, mode: 'particles' },
+    { pan: [1.5, -2.25], zoom: 3.0000001, rotation: 0.4, mode: 'particles' },
+    { pan: [1.5, -2.25], zoom: 3, rotation: 0.4000001, mode: 'particles' },
+    { pan: [1.5, -2.25], zoom: 3, rotation: 0.4, mode: 'trail' },
   ];
   for (const view of moved) {
     assert.equal(
@@ -274,7 +277,12 @@ test('the smallest movement a drag can produce still drops the still', () => {
   // fractions of a world unit per frame. Any tolerance would let the camera
   // creep away while a stale still stayed frozen on screen -- the precise
   // artefact this guards against, and one that would look like a frozen app.
-  const crept: SettledView = { pan: [1.5 + Number.EPSILON, -2.25], zoom: 3, mode: 'particles' };
+  const crept: SettledView = {
+    pan: [1.5 + Number.EPSILON, -2.25],
+    zoom: 3,
+    rotation: 0.4,
+    mode: 'particles',
+  };
   assert.equal(settledViewMatches(VIEW, crept), false);
 });
 

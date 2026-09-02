@@ -29,6 +29,7 @@ const VIEW: CameraView = {
   windowSize: [1920, 1080],
   pan: [0.25, -0.5],
   zoom: 2.5,
+  rotation: 0.375,
 };
 
 const prefs = (over: Partial<DisplayPreferences> = {}): DisplayPreferences => ({
@@ -66,7 +67,7 @@ test('bloom upsample carries texel and radius', () => {
 });
 
 test('frame assembly repeats the camera View block verbatim', () => {
-  // Same four values the camera pushed, so the overlays land exactly where the
+  // Same view values the camera pushed, so the overlays land exactly where the
   // image did (`assembler.py:114-121`). A drift here puts the reticle somewhere
   // the brush is not.
   const f32 = new Float32Array(

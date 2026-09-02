@@ -30,7 +30,7 @@
  * pushes (`camera.py:292-298`), packed into 32 bytes:
  *
  *   +0   canvas_res : vec4f   xy canvas size, zw window size
- *   +16  camera     : vec4f   xy pan, z zoom, w reserved
+ *   +16  camera     : vec4f   xy pan, z zoom, w rotation
  *
  * Both camera modes read the identical block, which is what makes them agree
  * pixel-for-pixel about where a world point lands (invariant 9). The assembler
@@ -44,6 +44,7 @@ export interface CameraView {
   readonly windowSize: readonly [number, number];
   readonly pan: readonly [number, number];
   readonly zoom: number;
+  readonly rotation: number;
 }
 
 /**
@@ -99,7 +100,7 @@ function writeView(f32: Float32Array, view: CameraView): void {
   f32[4] = view.pan[0];
   f32[5] = view.pan[1];
   f32[6] = view.zoom;
-  // f32[7] reserved
+  f32[7] = view.rotation;
 }
 
 /** Pack the TRAIL present pass's uniforms. */

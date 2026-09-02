@@ -65,7 +65,7 @@ function validDocument(): Record<string, unknown> {
     world: {
       trail_persistence: 0.9,
       trail_diffusion: 1.0,
-      boundary_conditions: BC.WRAP,
+      boundary_conditions: BC.DISH,
     },
     configs: [oneConfig(0.01)],
   };
@@ -160,7 +160,7 @@ test('the decoded document is still a loadable config', () => {
   // through the real reader, which is what actually runs on a shared link.
   const saved = fromDocument(decodeShareLink(encodeShareLink(validDocument())));
   assert.equal(saved.configs.length, 1);
-  assert.equal(saved.world.boundaryConditions, BC.WRAP);
+  assert.equal(saved.world.boundaryConditions, BC.DISH);
   assert.equal(saved.configs[0]!.mutationSeed, 0.82);
 });
 

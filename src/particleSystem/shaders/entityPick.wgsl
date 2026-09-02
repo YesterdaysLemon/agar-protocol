@@ -228,10 +228,9 @@ fn reduce(@builtin(global_invocation_id) gid: vec3u) {
     let e = entities[index];
     let pos = e_pos(e);
 
-    // Straight-line, deliberately NOT toroidal. Picking is a UI affordance, and
-    // the wrap only changes the answer for a click within a particle radius of
-    // the seam -- not worth threading the boundary mode down here, and wrong in
-    // every mode but BC_WRAP anyway.
+    // Straight-line. This fork has no toroidal mode, so the visible distance is
+    // also the only physical distance and no seam correction can disagree with
+    // what the pointer is over.
     let d = pick_target() - pos;
     let dist_sq = dot(d, d);
     let limit = max_dist();

@@ -411,7 +411,9 @@ test('parity: a packed WorldData record is byte-identical to the Python', () => 
 test('parity: the mode enums match the Python by value', () => {
   const e = PARITY.packing.enums;
   assert.equal(BC.BOUNCE, e.BC_BOUNCE);
-  assert.equal(BC.WRAP, e.BC_WRAP);
+  // The fork reuses upstream's serialized slot 1 so old byte streams become a
+  // contained dish without changing the v8 layout.
+  assert.equal(BC.DISH, e.BC_WRAP);
   assert.equal(BC.RESET, e.BC_RESET);
   assert.equal(IC.GRID, e.IC_GRID);
   assert.equal(IC.RANDOM, e.IC_RANDOM);

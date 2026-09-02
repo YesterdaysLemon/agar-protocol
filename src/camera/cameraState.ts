@@ -20,6 +20,7 @@ import {
   type Vec2,
   type WindowSize,
   screenToWorld,
+  rotateVec2,
   vec2Equals,
   worldHalfExtent,
 } from '../particleSystem/coords.ts';
@@ -51,6 +52,9 @@ export const PAN_PER_SECOND = 0.9;
  * when zoomed in. Consumed by the same later step as `PAN_PER_SECOND`.
  */
 export const ZOOM_PER_SECOND = 2.2;
+
+/** One press of an orientation nudge in radians (15 degrees). */
+export const ROTATION_STEP = Math.PI / 12;
 
 /**
  * What the camera draws.
@@ -106,11 +110,13 @@ export function nextCameraMode(mode: CameraMode): CameraMode {
 export class CameraState {
   pan: Vec2 = [0.0, 0.0];
   zoom = 1.0;
+  rotation = 0.0;
   mode: CameraMode = 'particles';
 
-  constructor(init?: { pan?: Vec2; zoom?: number; mode?: CameraMode }) {
+  constructor(init?: { pan?: Vec2; zoom?: number; rotation?: number; mode?: CameraMode }) {
     if (init?.pan !== undefined) this.pan = init.pan;
     if (init?.zoom !== undefined) this.zoom = init.zoom;
+    if (init?.rotation !== undefined) this.setRotation(init.rotation);
     if (init?.mode !== undefined) this.mode = init.mode;
   }
 
@@ -124,6 +130,7 @@ export class CameraState {
   reset(): void {
     this.pan = [0.0, 0.0];
     this.zoom = 1.0;
+    this.rotation = 0.0;
   }
 
   /**
@@ -146,9 +153,23 @@ export class CameraState {
   ): void {
     if (!notches) return;
     // NOTE screenToWorld's argument order: pixel, WINDOW, CANVAS.
-    const before = screenToWorld(pixel, windowSize, canvasSize, this.pan, this.zoom);
+    const before = screenToWorld(
+      pixel,
+      windowSize,
+      canvasSize,
+      this.pan,
+      this.zoom,
+      this.rotation,
+    );
     this.setZoom(this.zoom * ZOOM_PER_NOTCH ** notches);
-    const after = screenToWorld(pixel, windowSize, canvasSize, this.pan, this.zoom);
+    const after = screenToWorld(
+      pixel,
+      windowSize,
+      canvasSize,
+      this.pan,
+      this.zoom,
+      this.rotation,
+    );
     this.pan = [
       this.pan[0] + (before[0] - after[0]),
       this.pan[1] + (before[1] - after[1]),
@@ -174,7 +195,11 @@ export class CameraState {
     if (vec2Equals(fraction, [0.0, 0.0])) return;
     const [, extentY] = worldHalfExtent(canvasSize);
     const step = (2.0 * extentY) / this.zoom;
-    this.pan = [this.pan[0] + fraction[0] * step, this.pan[1] + fraction[1] * step];
+    const worldFraction = rotateVec2(fraction, -this.rotation);
+    this.pan = [
+      this.pan[0] + worldFraction[0] * step,
+      this.pan[1] + worldFraction[1] * step,
+    ];
   }
 
   /**
@@ -209,13 +234,21 @@ export class CameraState {
     // Two points one delta apart, measured through the full inverse chain at the
     // CURRENT pan and zoom. Their difference is what that delta is worth in
     // world units right now.
-    const origin = screenToWorld([0.0, 0.0], windowSize, canvasSize, this.pan, this.zoom);
+    const origin = screenToWorld(
+      [0.0, 0.0],
+      windowSize,
+      canvasSize,
+      this.pan,
+      this.zoom,
+      this.rotation,
+    );
     const moved = screenToWorld(
       [deltaPixels[0], deltaPixels[1]],
       windowSize,
       canvasSize,
       this.pan,
       this.zoom,
+      this.rotation,
     );
     this.pan = [
       this.pan[0] - (moved[0] - origin[0]),
@@ -254,6 +287,18 @@ export class CameraState {
   setZoom(zoom: number): void {
     if (!Number.isFinite(zoom)) return;
     this.zoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, zoom));
+  }
+
+  /** Set the dish orientation, normalized to the compact [-pi, pi) range. */
+  setRotation(rotation: number): void {
+    if (!Number.isFinite(rotation)) return;
+    const turn = Math.PI * 2.0;
+    this.rotation = ((rotation + Math.PI) % turn + turn) % turn - Math.PI;
+  }
+
+  rotateBy(radians: number): void {
+    if (radians === 0.0) return;
+    this.setRotation(this.rotation + radians);
   }
 
   toggleMode(): void {

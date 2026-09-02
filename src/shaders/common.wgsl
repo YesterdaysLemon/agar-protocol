@@ -106,7 +106,10 @@ const TRAIL_PERSISTENCE_MAX: f32 = 0.999;
 // What happens when a particle reaches the edge of the world. A WorldData
 // setting: the trail field follows the same rule, so it cannot vary per config.
 const BC_BOUNCE: i32 = 0;
-const BC_WRAP: i32 = 1;
+// Serialized slot 1 was BC_WRAP upstream. This fork intentionally reuses that
+// byte value for a circular culture vessel, so existing projects enter the dish
+// while opposite edges are never made adjacent.
+const BC_DISH: i32 = 1;
 const BC_RESET: i32 = 2;
 
 // How particles are placed on reset. A ConfigData setting: different
@@ -339,9 +342,9 @@ fn make_entity_reset(pos: vec2f, vel: vec2f, size: f32,
 // copies of this math, at least one of which contradicted the others; that is
 // the specific failure this rule exists to prevent.
 //
-// THE WORLD IS A TORUS ONLY IN BC_WRAP. The boundary mode decides the world's
-// topology, so anything that crosses an edge must ask: world_wrap for wrap,
-// world_bounce for bounce, and world_to_uv_bc for every texture read.
+// THIS FORK HAS NO PERIODIC TOPOLOGY. Slot 1 is a circular petri vessel,
+// BC_BOUNCE is the rectangular compatibility mode, and every texture read uses
+// an edge-clamped sampler. Nothing on one edge can sense or diffuse to another.
 //
 // SEVERAL FUNCTIONS BELOW HAVE NO EXTERNAL CALLER. world_half_extent,
 // world_to_uv, uv_to_world, edge_fold, letterbox_scale and screen_ndc_to_world
@@ -370,21 +373,20 @@ fn aspect_correct_uv(d: vec2f, canvas_res: vec2f) -> vec2f {
     return d * world_half_extent_from_res(canvas_res);
 }
 
-// World -> texture uv [0,1]. In BC_WRAP the canvas textures are sampled with a
-// repeating sampler and the sampler does the wrapping, so uv is deliberately
-// left unclamped. Every other boundary mode must go through world_to_uv_bc.
+// World -> texture uv [0,1]. Callers that sample must go through
+// world_to_uv_bc, which clamps every boundary mode in this non-periodic fork.
 fn world_to_uv(p: vec2f, canvas_res: vec2f) -> vec2f {
     return p / (2.0 * world_half_extent_from_res(canvas_res)) + 0.5;
 }
 
-// World -> texture uv, honoring the boundary mode. Only BC_WRAP leaves uv free
-// for the sampler's repeat to handle; the others clamp, so a sensor reaching
-// past the edge reads the edge rather than the far side of the world.
+// World -> texture uv, honoring the non-periodic boundary contract. `bc` stays
+// in the signature because call sites share it with the upstream shader and it
+// documents that this conversion is a boundary decision, even though all three
+// modes clamp now.
 fn world_to_uv_bc(p: vec2f, canvas_res: vec2f, bc: i32) -> vec2f {
     let uv = world_to_uv(p, canvas_res);
-    // select(false_value, true_value, condition) -- the argument order is the
-    // reverse of GLSL's `cond ? a : b`.
-    return select(clamp(uv, vec2f(0.0), vec2f(1.0)), uv, bc == BC_WRAP);
+    _ = bc;
+    return clamp(uv, vec2f(0.0), vec2f(1.0));
 }
 
 fn uv_to_world(uv: vec2f, canvas_res: vec2f) -> vec2f {
@@ -396,19 +398,28 @@ fn world_to_ndc(p: vec2f, canvas_res: vec2f) -> vec2f {
     return p / world_half_extent_from_res(canvas_res);
 }
 
-// Wrap a world position into the world bounds. BC_WRAP only -- the world is a
-// torus in that mode alone.
-//
-// DO NOT REWRITE fract() AS `%`. `p` here is freely signed (a world position
-// past either edge), so `p / size - 0.5` is routinely negative, and WGSL's `%`
-// is truncated where this needs floored behaviour. WGSL defines fract(x) as
-// `x - floor(x)`, identical to GLSL, so it translates verbatim and correctly --
-// the `%` "cleanup" would break wrap for every particle leaving the left or
-// bottom edge.
-fn world_wrap(p: vec2f, canvas_res: vec2f) -> vec2f {
+// The physical dish occupies 86% of the shorter canvas dimension. Because this
+// world space is area-preserving, a world-space circle renders as a true circle
+// in screen pixels at every canvas aspect. The CSS rim uses the same 86%.
+const DISH_DIAMETER_FRACTION: f32 = 0.86;
+
+fn world_dish_radius(canvas_res: vec2f) -> f32 {
     let extent = world_half_extent_from_res(canvas_res);
-    let size = 2.0 * extent;
-    return size * (fract(p / size - 0.5) - 0.5);
+    return DISH_DIAMETER_FRACTION * min(extent.x, extent.y);
+}
+
+fn world_in_dish(p: vec2f, canvas_res: vec2f) -> bool {
+    return length(p) <= world_dish_radius(canvas_res);
+}
+
+// Keep a seed safely inside the wall. Initial layouts were authored for the
+// upstream rectangular world; radial projection preserves their angle and
+// ordering while preventing an outer grid cell from starting beyond the dish.
+fn world_project_into_dish(p: vec2f, canvas_res: vec2f, margin: f32) -> vec2f {
+    let limit = world_dish_radius(canvas_res) * clamp(margin, 0.0, 1.0);
+    let d = length(p);
+    if (d <= limit || d == 0.0) { return p; }
+    return p * (limit / d);
 }
 
 // Reflect a coordinate given in edge units back into [-1,1]. A triangle wave,
@@ -451,6 +462,29 @@ fn world_bounce(p: vec2f, v: vec2f, canvas_res: vec2f) -> BounceResult {
     return BounceResult(pos, vel);
 }
 
+// Reflect against the visible circular rim. A direct strafe can place a
+// particle farther past the wall than its velocity alone predicts, so position
+// is projected just inside the vessel and only an OUTWARD velocity component
+// is reflected. An inward-moving particle is left inward-moving instead of
+// being turned back out by the correction itself.
+fn world_dish_bounce(p: vec2f, v: vec2f, canvas_res: vec2f) -> BounceResult {
+    let radius = world_dish_radius(canvas_res);
+    let d = length(p);
+    if (d <= radius || d == 0.0) { return BounceResult(p, v); }
+
+    let normal = p / d;
+    var vel = v;
+    let outward_speed = dot(vel, normal);
+    if (outward_speed > 0.0) {
+        vel -= 2.0 * outward_speed * normal;
+    }
+
+    // The tiny inset prevents a round-to-outside value from retriggering on the
+    // next step while remaining many orders below a visible pixel.
+    let inset = max(radius * 1e-5, 1e-6);
+    return BounceResult(normal * max(0.0, radius - inset), vel);
+}
+
 // ---------------------------------------------------------------------------
 // THE VIEW TRANSFORM -- world to screen, through camera and letterbox.
 //
@@ -480,25 +514,31 @@ fn letterbox_scale(canvas_res: vec2f, window_res: vec2f) -> vec2f {
         window_aspect > canvas_aspect);
 }
 
+fn rotate_world(v: vec2f, radians: f32) -> vec2f {
+    let c = cos(radians);
+    let s = sin(radians);
+    return vec2f(v.x * c - v.y * s, v.x * s + v.y * c);
+}
+
 fn world_to_screen_ndc(p: vec2f, canvas_res: vec2f, window_res: vec2f,
-                       pan: vec2f, zoom: f32) -> vec2f {
-    let ndc = world_to_ndc(p - pan, canvas_res) * zoom;
+                       pan: vec2f, zoom: f32, rotation: f32) -> vec2f {
+    let ndc = world_to_ndc(rotate_world(p - pan, rotation), canvas_res) * zoom;
     return ndc * letterbox_scale(canvas_res, window_res);
 }
 
 fn screen_ndc_to_world(ndc: vec2f, canvas_res: vec2f, window_res: vec2f,
-                       pan: vec2f, zoom: f32) -> vec2f {
+                       pan: vec2f, zoom: f32, rotation: f32) -> vec2f {
     var v = ndc / letterbox_scale(canvas_res, window_res);
     if (zoom != 0.0) { v /= zoom; }
-    return uv_to_world(v * 0.5 + 0.5, canvas_res) + pan;
+    return rotate_world(uv_to_world(v * 0.5 + 0.5, canvas_res), -rotation) + pan;
 }
 
 // Screen ndc -> canvas uv, for the present pass sampling the canvas texture.
 // Values outside [0,1] fall in the letterbox bars; the caller decides whether
 // to clamp, wrap (tiling) or paint them black.
 fn screen_ndc_to_canvas_uv(ndc: vec2f, canvas_res: vec2f, window_res: vec2f,
-                           pan: vec2f, zoom: f32) -> vec2f {
+                           pan: vec2f, zoom: f32, rotation: f32) -> vec2f {
     return world_to_uv(
-        screen_ndc_to_world(ndc, canvas_res, window_res, pan, zoom),
+        screen_ndc_to_world(ndc, canvas_res, window_res, pan, zoom, rotation),
         canvas_res);
 }

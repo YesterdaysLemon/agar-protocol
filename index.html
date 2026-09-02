@@ -22,7 +22,7 @@
          would resolve against the domain root and 404.
 
          The manifest deliberately omits `display`. With it, mobile Chrome
-         meets its installability bar and nags with an "Install Fluoddity"
+         meets its installability bar and nags with an "Install Agar Protocol"
          banner. Favicon generators emit `"display": "standalone"` by default,
          so drop it again after any regeneration. -->
     <link rel="icon" type="image/png" href="./favicon-96x96.png" sizes="96x96" />
@@ -30,8 +30,12 @@
     <link rel="shortcut icon" href="./favicon.ico" />
     <link rel="apple-touch-icon" sizes="180x180" href="./apple-touch-icon.png" />
     <link rel="manifest" href="./site.webmanifest" />
-    <meta name="theme-color" content="#000000" />
-    <title>Fluoddity</title>
+    <meta name="theme-color" content="#e8eae9" />
+    <meta
+      name="description"
+      content="Cultivate, isolate, and archive evolving digital lineages in a WebGPU petri dish."
+    />
+    <title>Agar Protocol</title>
 
     <!-- Link-preview card, for when the URL is pasted into Discord, Slack,
          iMessage, X and the rest.
@@ -52,11 +56,9 @@
          `og:image:secure_url` alongside `og:image`: some scrapers still read
          only the former over HTTPS. Same file, and cheap insurance.
 
-         `og:description` is PLACEHOLDER TEXT -- swap the lorem ipsum below for
-         real copy before this matters. Scrapers cache aggressively, so whatever
-         is here when a link is first pasted can outlive the edit that fixes it.
-         Keep it under ~200 characters: Discord and Slack truncate past roughly
-         that, and X shows less still.
+         Keep `og:description` under ~200 characters: Discord and Slack truncate
+         past roughly that, and X shows less still. Scrapers cache aggressively,
+         so whatever is here when a link is first pasted can outlive later edits.
 
          No `twitter:description` -- Twitter falls back to `og:description`, so
          a second copy would only be one more place to forget to update.
@@ -65,25 +67,29 @@
          rather than a thumbnail beside text that is not there. Twitter falls
          back to the `og:` tags for everything else, so they are not repeated. -->
     <meta property="og:type" content="website" />
-    <meta property="og:site_name" content="Fluoddity" />
-    <meta property="og:title" content="Fluoddity" />
-    <!-- TODO: replace with the real description. -->
+    <meta property="og:site_name" content="Agar Protocol" />
+    <meta property="og:title" content="Agar Protocol" />
     <meta
       property="og:description"
-      content="An interactive lava lamp? An evolvable ant farm? Explore a world very different from our own."
+      content="Cultivate, isolate, and archive evolving digital lineages in a WebGPU petri dish."
     />
-    <meta property="og:url" content="https://fluoddity.com/" />
-    <meta property="og:image" content="https://fluoddity.com/image_card.png" />
+    <meta property="og:url" content="https://agar.alirezaafshan.com/" />
+    <meta property="og:image" content="https://agar.alirezaafshan.com/image_card.png" />
     <meta
       property="og:image:secure_url"
-      content="https://fluoddity.com/image_card.png"
+      content="https://agar.alirezaafshan.com/image_card.png"
     />
-    <meta property="og:image:alt" content="Fluoddity" />
+    <meta property="og:image:alt" content="Agar Protocol digital culture vessel" />
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="Fluoddity" />
-    <meta name="twitter:image" content="https://fluoddity.com/image_card.png" />
+    <meta name="twitter:title" content="Agar Protocol" />
+    <meta name="twitter:image" content="https://agar.alirezaafshan.com/image_card.png" />
     <style>
-      :root { color-scheme: dark; }
+      :root {
+        color-scheme: light;
+        --lab-stage-reserve: 236px;
+        --lab-dish-radius: min(43vh, calc(43vw - 101.5px));
+        --lab-dish-diameter: min(86vh, calc(86vw - 203px));
+      }
 
       html, body {
         margin: 0;
@@ -103,7 +109,7 @@
         height: 100%;
         height: 100dvh;
         overflow: hidden;
-        background: #000;
+        background: #e8eae9;
       }
 
       /* The canvas fills the viewport in CSS pixels; its backing store is sized
@@ -124,8 +130,10 @@
          while waiting to see a double-tap-to-zoom. */
       #app {
         display: block;
-        width: 100%;
+        width: calc(100% - var(--lab-stage-reserve));
         height: 100%;
+        background: #020405;
+        clip-path: circle(var(--lab-dish-radius) at 50% 50%);
         touch-action: none;
       }
 
@@ -140,12 +148,20 @@
         padding: 2rem;
         text-align: center;
         font: 16px/1.5 system-ui, sans-serif;
-        color: #eee;
-        background: #1a1a1a;
+        color: #242829;
+        background: #eceeed;
       }
 
       #gpu-error h1 { margin: 0; font-size: 1.25rem; font-weight: 600; }
-      #gpu-error p  { margin: 0; max-width: 44rem; color: #bbb; }
+      #gpu-error p  { margin: 0; max-width: 44rem; color: #697071; }
+
+      @media (max-width: 900px) {
+        :root {
+          --lab-stage-reserve: 0px;
+          --lab-dish-radius: 43vmin;
+          --lab-dish-diameter: 86vmin;
+        }
+      }
 
       /* The settings panel's tab strip scrolls horizontally when its buttons
          cannot fit, which is what stops an overflowing tab becoming

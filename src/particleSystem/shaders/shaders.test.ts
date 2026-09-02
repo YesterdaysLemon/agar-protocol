@@ -417,6 +417,44 @@ test('entityPick.wgsl selects its config the same way entityUpdate does', () => 
   assert.match(pick, clamp, 'entityPick.wgsl must select the config identically');
 });
 
+test('the fork uses one real circular dish and has no periodic shader path', () => {
+  const update = stripComments(expand('entityUpdate.wgsl'));
+  const canvas = stripComments(expand('canvas.wgsl'));
+
+  for (const source of [update, canvas]) {
+    assert.doesNotMatch(source, /\bBC_WRAP\b/, 'a toroidal boundary constant survived');
+    assert.doesNotMatch(source, /\bworld_wrap\s*\(/, 'a wraparound transform survived');
+    assert.match(source, /const\s+BC_DISH\s*:\s*i32\s*=\s*1\s*;/);
+    assert.match(source, /fn\s+world_in_dish\s*\(/);
+  }
+
+  assert.match(update, /world_dish_bounce\(pos,\s*vel,\s*canvas_resolution\)/);
+  assert.match(
+    canvas,
+    /BC_DISH\s*&&\s*!world_in_dish\(uv_to_world\(in\.uv,\s*res\),\s*res\)/,
+    'the trail buffer must be cleared beyond the same circular wall',
+  );
+});
+
+test('entityUpdate distributes entities across every configured specimen slot', () => {
+  const source = stripComments(expand('entityUpdate.wgsl'));
+  const assignment = source.slice(
+    source.indexOf('fn assign_config_index('),
+    source.indexOf('fn grid_cells('),
+  );
+  assert.match(
+    assignment,
+    /index\s*\*\s*config_count[^;]*\/\s*entity_count/,
+    'config assignment must partition the entity range across config slots',
+  );
+  assert.match(
+    assignment,
+    /world_config_count\(u\.world\)/,
+    'assignment must use the live config count rather than a shelf constant',
+  );
+  assert.ok(!/return\s+0\s*;/.test(assignment), 'mixed arenas must not collapse onto config 0');
+});
+
 test('canvas.wgsl takes no sampler as a function parameter', () => {
   // WGSL forbids it outright, and canvas.frag:18's `getCan(vec2 p, sampler2D
   // sam)` is exactly that. Inlined in the port; asserted so it does not come

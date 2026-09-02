@@ -174,9 +174,9 @@ test('boundary dropdown order matches the BC_* constants', () => {
   // Each label's INDEX is the value uploaded to the GPU. A reorder here changes
   // what every saved config means, with no error anywhere.
   const modes = DROPDOWN_MODES.boundaryConditions;
-  assert.equal(modes.indexOf('Bounce'), BC.BOUNCE);
-  assert.equal(modes.indexOf('Wrap'), BC.WRAP);
-  assert.equal(modes.indexOf('Reset'), BC.RESET);
+  assert.equal(modes.indexOf('Box walls'), BC.BOUNCE);
+  assert.equal(modes.indexOf('Petri dish'), BC.DISH);
+  assert.equal(modes.indexOf('Reset at edge'), BC.RESET);
   assert.equal(modes.length, 3);
 });
 

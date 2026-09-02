@@ -18,6 +18,7 @@ import {
   PAN_PER_SECOND,
   ZOOM_PER_NOTCH,
   ZOOM_PER_SECOND,
+  ROTATION_STEP,
   nextCameraMode,
 } from './cameraState.ts';
 import {
@@ -94,6 +95,29 @@ test('zoomAtPixel with zero notches is a no-op', () => {
   camera.zoomAtPixel(0, [100, 100], WINDOW, CANVAS);
   assert.deepEqual(camera.pan, [0.4, 0.6]);
   assert.equal(camera.zoom, 2);
+});
+
+test('zoomAtPixel keeps its anchor while the dish is rotated', () => {
+  const camera = new CameraState({ pan: [0.2, -0.3], zoom: 1.7, rotation: 0.73 });
+  const pixel: Vec2 = [318, 742];
+  const before = screenToWorld(
+    pixel,
+    WINDOW,
+    CANVAS,
+    camera.pan,
+    camera.zoom,
+    camera.rotation,
+  );
+  camera.zoomAtPixel(2, pixel, WINDOW, CANVAS);
+  const after = screenToWorld(
+    pixel,
+    WINDOW,
+    CANVAS,
+    camera.pan,
+    camera.zoom,
+    camera.rotation,
+  );
+  assertCloseVec2(after, before, 'rotated zoom anchor', 1e-9);
 });
 
 // ---------------------------------------------------------------------------
@@ -268,6 +292,15 @@ test('setZoom rejects a non-finite zoom rather than propagating it', () => {
   assert.ok(Number.isFinite(screenToWorld([10, 10], WINDOW, CANVAS, camera.pan, camera.zoom)[0]));
 });
 
+test('dish rotation normalizes, nudges, and rejects non-finite values', () => {
+  const camera = new CameraState({ rotation: Math.PI * 3 });
+  assertClose(camera.rotation, -Math.PI, 'constructor normalizes rotation');
+  camera.rotateBy(ROTATION_STEP);
+  assertClose(camera.rotation, -Math.PI + ROTATION_STEP, 'rotation nudge');
+  camera.setRotation(Number.NaN);
+  assertClose(camera.rotation, -Math.PI + ROTATION_STEP, 'NaN is refused');
+});
+
 // ---------------------------------------------------------------------------
 // Mode and reset
 // ---------------------------------------------------------------------------
@@ -293,11 +326,12 @@ test('nextCameraMode wraps over the ordered mode list', () => {
 
 // reset() deliberately leaves mode alone -- which view you are looking through
 // is a display preference, not part of "where am I looking".
-test('reset restores pan and zoom but NOT mode', () => {
-  const camera = new CameraState({ pan: [3, -4], zoom: 7, mode: 'trail' });
+test('reset restores pan, zoom and rotation but NOT mode', () => {
+  const camera = new CameraState({ pan: [3, -4], zoom: 7, rotation: 0.8, mode: 'trail' });
   camera.reset();
   assert.deepEqual(camera.pan, [0, 0]);
   assert.equal(camera.zoom, 1.0);
+  assert.equal(camera.rotation, 0.0);
   assert.equal(camera.mode, 'trail', 'reset must not touch mode');
 });
 

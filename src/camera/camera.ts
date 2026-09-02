@@ -423,6 +423,7 @@ export class Camera {
       windowSize: frame.windowSize,
       pan: this.state.pan,
       zoom: this.state.zoom,
+      rotation: this.state.rotation,
     };
     // Both modes' uniforms, unconditionally. Writing only the active mode's
     // would leave the other stale, and the mode can change between frames --

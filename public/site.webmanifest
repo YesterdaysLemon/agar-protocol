@@ -1,7 +1,7 @@
 {
-  "name": "Fluoddity",
-  "short_name": "Fluoddity",
-  "description": "A WebGPU particle simulation.",
+  "name": "Agar Protocol",
+  "short_name": "Agar",
+  "description": "Cultivate, isolate, and archive evolving digital lineages.",
   "icons": [
     {
       "src": "web-app-manifest-192x192.png",
@@ -16,6 +16,6 @@
       "purpose": "maskable"
     }
   ],
-  "theme_color": "#000000",
-  "background_color": "#000000"
+  "theme_color": "#e8eae9",
+  "background_color": "#e8eae9"
 }

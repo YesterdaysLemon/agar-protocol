@@ -53,6 +53,8 @@ import { detectMobile, mobileModeFromValue, resolveMobile } from './ui/mobile.ts
 import { bindTouch } from './ui/touchBinding.ts';
 import { Panel } from './ui/panel.ts';
 import { fpsFrom, startBand, stepBand } from './perf/fpsBand.ts';
+import { SpecimenLab } from './lab/specimenLab.ts';
+import { installCultureConsole } from './lab/cultureConsole.ts';
 
 /**
  * The `?debug` readout.
@@ -612,6 +614,21 @@ async function start(): Promise<void> {
   // second one decides whether the settings payloads are worth building.
   orchestrator.panelOpen = panel?.isOpen ?? false;
 
+  // The specimen shelf is app chrome, so the screenshot/verification route's
+  // `?nopanel` suppresses it with the rest. `?nolab` is the narrower escape hatch
+  // for comparing the original interaction without hiding the editor panels.
+  const specimenLab =
+    params.has('nopanel') || params.has('nolab')
+      ? null
+      : new SpecimenLab({
+          bus: orchestrator,
+          canvas,
+          mobile,
+          camera: () => orchestrator.cameraState,
+          canvasSize: () => orchestrator.canvasDimensions,
+        });
+  if (specimenLab !== null) installCultureConsole(mobile, orchestrator.cameraState);
+
   // Reported HERE rather than where it was caught, because until now there was
   // nothing on screen to report it with. Actionable text only -- the raw error
   // is already in the console and names nothing a user can act on.
@@ -1047,6 +1064,7 @@ async function start(): Promise<void> {
       band: band.band,
       readout: band.readout,
     });
+    specimenLab?.refresh(frameStatus);
 
     if (overlay !== null) {
       const d = orchestrator.diagnostics;

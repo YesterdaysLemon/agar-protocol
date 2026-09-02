@@ -63,6 +63,18 @@ test('screenNdcToWorld inverts worldToScreenNdc', () => {
   }
 });
 
+test('rotation is part of the exact world/screen inverse', () => {
+  const canvas: CanvasSize = [1024, 768];
+  const windowSize: WindowSize = [1536, 864];
+  const pan: Vec2 = [0.31, -0.27];
+  const point: Vec2 = [0.82, 0.41];
+  for (const rotation of [Math.PI / 6, -Math.PI / 2, Math.PI * 0.93]) {
+    const ndc = worldToScreenNdc(point, canvas, windowSize, pan, 2.4, rotation);
+    const back = screenNdcToWorld(ndc, canvas, windowSize, pan, 2.4, rotation);
+    assertCloseVec2(back, point, `rotation=${rotation}`, 1e-9);
+  }
+});
+
 // The full pixel chain, which exercises the y flip in both directions --
 // something the ndc-only round trip above never touches.
 test('screenToWorld inverts worldToScreenNdc composed with ndcToScreen', () => {

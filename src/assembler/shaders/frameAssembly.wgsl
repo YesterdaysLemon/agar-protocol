@@ -23,7 +23,7 @@
 
 struct FrameAssemblyUniforms {
     canvas_res : vec4f,   // xy: canvas size   zw: window size
-    camera     : vec4f,   // xy: pan   z: zoom   w: reserved
+    camera     : vec4f,   // xy: pan   z: zoom   w: rotation
     // x: bloom_intensity   y: brightness   z: tonemap_softness   w: field_opacity
     tone       : vec4f,
     reticle    : vec4f,   // xy: center (canvas uv)   z: radius   w: reserved
@@ -171,7 +171,7 @@ fn fs_main(in: FsQuadVsOut) -> @location(0) vec4f {
         // the finished file, which is the worst place to find one.
         let ndc = uv * 2.0 - 1.0;
         let canvas_uv = screen_ndc_to_canvas_uv(ndc, u.canvas_res.xy, u.canvas_res.zw,
-                                                u.camera.xy, u.camera.z);
+                                                     u.camera.xy, u.camera.z, u.camera.w);
         let inside = all(canvas_uv >= vec2f(0.0)) && all(canvas_uv <= vec2f(1.0));
 
         // The field is the same SHAPE as the canvas -- only its resolution is

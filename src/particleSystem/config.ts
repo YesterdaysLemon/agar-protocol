@@ -43,7 +43,16 @@ import { assertLaneMap } from './layout.ts';
  * Const objects rather than TypeScript `enum`s: `verbatimModuleSyntax` and
  * `isolatedModules` make real enums awkward (and ban `const enum` outright).
  */
-export const BC = { BOUNCE: 0, WRAP: 1, RESET: 2 } as const;
+/**
+ * Boundary modes used by this fork.
+ *
+ * Slot 1 was the upstream toroidal WRAP mode.  It deliberately keeps the same
+ * wire value so old v8 projects and share links remain readable, but its runtime
+ * meaning is now DISH: a circular, reflective culture vessel.  Reusing the slot
+ * is what makes every existing specimen enter the real dish without a lossy
+ * migration or a second format version.
+ */
+export const BC = { BOUNCE: 0, DISH: 1, RESET: 2 } as const;
 export type BoundaryCondition = (typeof BC)[keyof typeof BC];
 
 export const IC = { GRID: 0, RANDOM: 1, CENTER: 2, RING: 3 } as const;
@@ -262,8 +271,8 @@ export interface WorldSettings {
 export const WORLD_SETTINGS_DEFAULTS = {
   trailPersistence: 0.94,
   trailDiffusion: 1.0,
-  /** BC_WRAP -- the behavior before the mode was selectable. */
-  boundaryConditions: BC.WRAP,
+  /** Circular petri vessel -- slot-compatible with upstream BC_WRAP saves. */
+  boundaryConditions: BC.DISH,
 } as const satisfies WorldSettings;
 
 export function makeWorldSettings(

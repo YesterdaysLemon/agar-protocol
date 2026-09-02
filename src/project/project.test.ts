@@ -98,7 +98,7 @@ test('defaults match the Python dataclass', () => {
   const p = makeProject({ configs: [config(0)] });
   assert.equal(p.name, UNTITLED);
   assert.equal(p.selected, 0);
-  assert.equal(p.world.boundaryConditions, BC.WRAP);
+  assert.equal(p.world.boundaryConditions, BC.DISH);
 });
 
 test('selectedConfig follows the selection', () => {

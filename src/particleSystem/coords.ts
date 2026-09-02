@@ -93,6 +93,15 @@ export type WindowSize = readonly [number, number];
  */
 export const IDENTITY_PAN: Vec2 = [0.0, 0.0];
 export const IDENTITY_ZOOM = 1.0;
+export const IDENTITY_ROTATION = 0.0;
+
+/** Rotate a world-space vector counter-clockwise by `radians`. */
+export function rotateVec2(p: Vec2, radians: number): Vec2 {
+  if (radians === 0.0) return p;
+  const c = Math.cos(radians);
+  const s = Math.sin(radians);
+  return [p[0] * c - p[1] * s, p[0] * s + p[1] * c];
+}
 
 /**
  * Element-wise equality for a `Vec2`.
@@ -172,11 +181,10 @@ export function ndcToWorld(ndc: Vec2, canvasSize: CanvasSize): Vec2 {
   return [ndc[0] * ex, ndc[1] * ey];
 }
 
-// There is deliberately no host-side worldWrap here, and no toroidal distance.
-// Wrapping is the shader's job (`world_wrap` in common.wgsl): nothing on the
-// host ever needs to move a particle. Picking -- the only thing that ever
-// wanted a toroidal distance -- uses straight-line distance in every boundary
-// mode; see entity_pick.
+// There is deliberately no host-side boundary transform. Particle containment
+// belongs to the shader, and this fork has no toroidal distance at all. Picking
+// therefore uses the same straight-line geometry the circular vessel displays;
+// see entityPick.wgsl.
 
 // ---------------------------------------------------------------------------
 // Letterboxing
@@ -218,9 +226,12 @@ export function worldToScreenNdc(
   windowSize: WindowSize,
   pan: Vec2 = IDENTITY_PAN,
   zoom: number = IDENTITY_ZOOM,
+  rotation: number = IDENTITY_ROTATION,
 ): Vec2 {
-  // Camera acts in world units, so pan is subtracted before normalizing.
-  const [cx0, cy0] = worldToNdc([p[0] - pan[0], p[1] - pan[1]], canvasSize);
+  // Camera acts in world units. Rotate before normalizing so rotation stays
+  // circular even when the simulation texture itself is rectangular.
+  const relative = rotateVec2([p[0] - pan[0], p[1] - pan[1]], rotation);
+  const [cx0, cy0] = worldToNdc(relative, canvasSize);
   const cx = cx0 * zoom;
   const cy = cy0 * zoom;
   const [sx, sy] = letterboxScale(canvasSize, windowSize);
@@ -247,6 +258,7 @@ export function screenNdcToWorld(
   windowSize: WindowSize,
   pan: Vec2 = IDENTITY_PAN,
   zoom: number = IDENTITY_ZOOM,
+  rotation: number = IDENTITY_ROTATION,
 ): Vec2 {
   const [sx, sy] = letterboxScale(canvasSize, windowSize);
   let cx = sx ? ndc[0] / sx : 0.0;
@@ -255,7 +267,8 @@ export function screenNdcToWorld(
     cx /= zoom;
     cy /= zoom;
   }
-  const [wx, wy] = ndcToWorld([cx, cy], canvasSize);
+  const [rx, ry] = ndcToWorld([cx, cy], canvasSize);
+  const [wx, wy] = rotateVec2([rx, ry], -rotation);
   return [wx + pan[0], wy + pan[1]];
 }
 
@@ -310,9 +323,10 @@ export function screenToWorld(
   canvasSize: CanvasSize,
   pan: Vec2 = IDENTITY_PAN,
   zoom: number = IDENTITY_ZOOM,
+  rotation: number = IDENTITY_ROTATION,
 ): Vec2 {
   const ndc = screenToNdc(pixel, windowSize);
-  return screenNdcToWorld(ndc, canvasSize, windowSize, pan, zoom);
+  return screenNdcToWorld(ndc, canvasSize, windowSize, pan, zoom, rotation);
 }
 
 // The forward chain stops at worldToScreenNdc (above), which the camera and

@@ -71,7 +71,7 @@ function validDocument(): Record<string, unknown> {
     world: {
       trail_persistence: 0.9,
       trail_diffusion: 1.0,
-      boundary_conditions: BC.WRAP,
+      boundary_conditions: BC.DISH,
     },
     configs: [
       {
@@ -289,12 +289,12 @@ test('an absent misc3 block defaults radial gravity to off', () => {
   assert.equal(fromDocument(doc).configs[0]!.radialGravity, false);
 });
 
-test('an absent boundary_conditions defaults to WRAP, not to zero', () => {
-  // `persistence.py:205-207`. BC.BOUNCE is 0, so a naive `?? 0` would load every
-  // pre-boundary file as BOUNCE -- visibly different physics, and no error.
+test('an absent boundary_conditions defaults to the circular dish slot, not to zero', () => {
+  // BC.BOUNCE is 0, so a naive `?? 0` would load every pre-boundary file as a
+  // rectangular box instead of this fork's visible circular vessel.
   const doc = validDocument();
   delete (doc['world'] as Record<string, unknown>)['boundary_conditions'];
-  assert.equal(fromDocument(doc).world.boundaryConditions, BC.WRAP);
+  assert.equal(fromDocument(doc).world.boundaryConditions, BC.DISH);
 });
 
 // ---------------------------------------------------------------------------

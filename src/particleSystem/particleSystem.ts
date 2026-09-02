@@ -45,10 +45,9 @@
 import {
   type SimulationConfig,
   type WorldSettings,
-  BC,
   forUpload,
 } from './config.ts';
-import { ENTITY_STRIDE } from './layout.ts';
+import { CONFIG_DATA_STRIDE, ENTITY_STRIDE } from './layout.ts';
 import { packConfigs } from './pack.ts';
 import { canvasDimensions, ENTITIES_PER_WORLD_UNIT, ENTITY_COUNT } from './sizing.ts';
 import {
@@ -76,6 +75,9 @@ import entityUpdateSource from './shaders/entityUpdate.wgsl';
 import canvasSource from './shaders/canvas.wgsl';
 import brushSource from './shaders/brush.wgsl';
 import entityPickSource from './shaders/entityPick.wgsl';
+
+/** Reserve the ordinary mixed-arena capacity so seeding needs no async reload. */
+const CONFIG_BUFFER_MIN_SLOTS = 8;
 
 // Re-exported so callers have one import for the simulation. The definitions
 // live in `dispatch.ts` because this module imports `.wgsl`, which only
@@ -145,7 +147,6 @@ export class ParticleSystem {
   private front: CanvasTarget;
   private back: CanvasTarget;
 
-  private readonly repeatSampler: GPUSampler;
   private readonly clampSampler: GPUSampler;
   /**
    * 1x1 stand-in bound to the Strafe Field's slot until a real field arrives.
@@ -230,10 +231,10 @@ export class ParticleSystem {
    */
   private pickGeneration = 0;
   /**
-   * Texture groups, keyed [wrap ? 1 : 0][front-is-a ? 0 : 1]. Pre-built because
-   * WebGPU samplers are immutable: the desktop flips `repeat_x/repeat_y` at
-   * runtime (`_apply_boundary_sampling`), which here means swapping bind groups
-   * rather than mutating one. Four combinations, built once, never per frame.
+   * Texture groups, keyed [clamped][front-is-a ? 0 : 1]. The upstream port
+   * also built a repeating row for its toroidal topology. This fork has no
+   * periodic boundary, so retaining that row would leave an easy path for a
+   * future call site to accidentally reconnect opposite sides of the dish.
    */
   private computeTextureGroups: GPUBindGroup[][] = [];
   private canvasTextureGroups: GPUBindGroup[][] = [];
@@ -269,7 +270,10 @@ export class ParticleSystem {
 
     this.configBuffer = device.createBuffer({
       label: 'ConfigBuffer',
-      size: packConfigs(this.configs).byteLength,
+      size: Math.max(
+        packConfigs(this.configs).byteLength,
+        CONFIG_BUFFER_MIN_SLOTS * CONFIG_DATA_STRIDE,
+      ),
       usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
     });
 
@@ -294,19 +298,13 @@ export class ParticleSystem {
     this.front = this.canvasA;
     this.back = this.canvasB;
 
-    // Both address modes, built up front. The desktop mutates one sampler;
-    // WebGPU samplers are immutable, so the mode is chosen by which bind group
-    // is bound. LINEAR filtering on both, matching `canvas_texture.filter`.
+    // The culture vessel never repeats. All texture reads clamp at the backing
+    // texture edge; the circular wall and its zero-valued exterior are enforced
+    // in WGSL. LINEAR filtering matches `canvas_texture.filter`.
     const samplerBase = {
       magFilter: 'linear',
       minFilter: 'linear',
     } as const;
-    this.repeatSampler = device.createSampler({
-      label: 'canvas-repeat',
-      addressModeU: 'repeat',
-      addressModeV: 'repeat',
-      ...samplerBase,
-    });
     this.clampSampler = device.createSampler({
       label: 'canvas-clamp',
       addressModeU: 'clamp-to-edge',
@@ -687,21 +685,18 @@ export class ParticleSystem {
   }
 
   /**
-   * Pre-build the four texture bind groups: {repeat, clamp} x {A front, B front}.
+   * Pre-build the two texture bind groups: clamped x {A front, B front}.
    *
-   * Both boundary modes and both buffer parities exist up front so neither a
-   * mode change nor the per-sub-step swap allocates anything.
+   * Both buffer parities exist up front so the per-sub-step swap allocates
+   * nothing. There is intentionally no repeating sampler in this fork.
    *
-   * THE STRAFE FIELD SHARES THE CANVAS'S SAMPLER (binding 3 takes the same one
-   * as binding 1), which is not a shortcut -- it is what makes the field track
-   * the boundary mode for free. The desktop has to say so twice
-   * (`_apply_boundary_sampling` for the canvas, `StrafeField.set_wrap` for the
-   * field); here the two cannot disagree, because one variant of this group is
-   * built per sampler and both slots read from it.
+   * THE STRAFE FIELD SHARES THE CANVAS'S CLAMP SAMPLER (binding 3 takes the
+   * same one as binding 1), so neither trail sensing nor a painted force can
+   * cross-connect the vessel's opposite sides.
    */
   private buildTextureGroups(): void {
     const device = this.device;
-    const samplers = [this.clampSampler, this.repeatSampler];
+    const samplers = [this.clampSampler];
     const fronts = [this.canvasA, this.canvasB];
 
     if (this.computeTextureLayout !== null) {
@@ -737,23 +732,26 @@ export class ParticleSystem {
     }
   }
 
-  /** Index into the pre-built texture groups for the current state. */
+  /** Index into the clamped texture groups for the current front texture. */
   private textureGroupIndex(): readonly [number, number] {
-    const wrap = this.world.boundaryConditions === BC.WRAP ? 1 : 0;
-    return [wrap, this.frontIsA ? 0 : 1];
+    return [0, this.frontIsA ? 0 : 1];
   }
 
-  private uploadConfigs(): void {
+  /** Upload configs and report whether the buffer identity had to change. */
+  private uploadConfigs(): boolean {
     const bytes = packConfigs(this.configs);
-    if (bytes.byteLength !== this.configBuffer.size) {
+    let reallocated = false;
+    if (bytes.byteLength > this.configBuffer.size) {
       this.configBuffer.destroy();
       this.configBuffer = this.device.createBuffer({
         label: 'ConfigBuffer',
-        size: bytes.byteLength,
+        size: Math.max(bytes.byteLength, CONFIG_BUFFER_MIN_SLOTS * CONFIG_DATA_STRIDE),
         usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
       });
+      reallocated = true;
     }
     this.device.queue.writeBuffer(this.configBuffer, 0, bytes);
+    return reallocated;
   }
 
   /** The GPU-facing world record: saved settings plus runtime sizing. */
@@ -764,16 +762,14 @@ export class ParticleSystem {
   /**
    * Replace the configs and world settings.
    *
-   * Rebuilds the config buffer and, if the boundary mode changed, simply
-   * selects a different pre-built bind group next frame -- there is nothing to
-   * re-apply, which is the whole benefit of building all four up front.
+   * Rebuilds the config buffer. Boundary behavior is data-driven in WGSL; every
+   * mode shares the same clamped sampler, so there is no sampler state to swap.
    */
   applyProject(configs: readonly SimulationConfig[], world: WorldSettings): void {
-    const sizeChanged = configs.length !== this.configs.length;
     this.configs = configs;
     this.world = world;
-    this.uploadConfigs();
-    if (sizeChanged) {
+    const reallocated = this.uploadConfigs();
+    if (reallocated) {
       // The bind group holds the buffer; a reallocated buffer needs new groups.
       void this.reload();
     }

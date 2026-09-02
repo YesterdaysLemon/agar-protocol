@@ -1,10 +1,18 @@
-Attention humans: This readme was written entirely by Opus 5 for agent orientation. See https://github.com/aphid91/Fluoddity for a human-readable explainer
+# Agar Protocol
 
-# Fluoddity
+A clinical WebGPU laboratory for cultivating, isolating, and archiving digital
+lineages. Begin with a cohort in a sealed petri dish, observe its behavior,
+isolate a promising organism, generate descendants, and preserve notable
+specimens for future mixed-lineage cultures.
 
-A GPU particle simulation in TypeScript and WebGPU: 600,000 entities driven by a
-Fourier Feature Network, painted into a trail field, with a bloom and tone-curve
-pipeline over the top.
+Agar Protocol is a derivative of
+[Fluoddity-Web](https://github.com/aphid91/Fluoddity-Web) by Jesse Gelders. The
+original simulation engine and this fork are available under the MIT License;
+the original copyright and license notice are preserved in `LICENSE.txt`.
+
+Under the laboratory interface is a GPU particle simulation in TypeScript and
+WebGPU: hundreds of thousands of entities driven by a Fourier Feature Network,
+painted into a trail field, with bloom and a tone-curve pipeline over the top.
 
 > **History.** This began as a port of a Python/moderngl desktop app, which
 > served as its executable spec. The port is complete and the Python app has

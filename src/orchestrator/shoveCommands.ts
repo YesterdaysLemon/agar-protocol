@@ -76,6 +76,7 @@ export interface ShoveContext {
   readonly canvasSize: readonly [number, number];
   readonly pan: readonly [number, number];
   readonly zoom: number;
+  readonly rotation: number;
   readonly physicsSteps: number;
   readonly drawPower: number;
   readonly drawSize: number;
@@ -113,6 +114,7 @@ export function shoveState(state: InputState, ctx: ShoveContext): ShoveState | n
     ctx.canvasSize,
     ctx.pan,
     ctx.zoom,
+    ctx.rotation,
   );
 
   // PER SUB-STEP, hence dividing by a power of `steps` at all: the shader

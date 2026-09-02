@@ -94,7 +94,6 @@ import {
   isHit,
   radiusPxToWorld,
 } from '../particleSystem/pick.ts';
-import { BC } from '../particleSystem/config.ts';
 import { canvasDimensions, sizingFor } from '../particleSystem/sizing.ts';
 import {
   type ConfigEntry,
@@ -130,6 +129,7 @@ import {
   type CommandBus,
   type MouseMode,
   type PreviewSurface,
+  type SpecimenSnapshot,
   type Status,
 } from './commands.ts';
 import { type Checkpoint, CheckpointStore } from './clipboardCommands.ts';
@@ -275,6 +275,9 @@ export class Orchestrator implements CommandBus {
 
   /** The last clicked entity. `null` until the user selects something. */
   private selected: PickResult | null = null;
+
+  /** Successful parent adoptions during this browser session. */
+  private lineageGeneration = 0;
 
   /**
    * The active tool. SELECT by default -- it is the only tool whose effect is a
@@ -589,7 +592,9 @@ export class Orchestrator implements CommandBus {
     // goes live -- `setStrafeField` rebuilds the compute texture groups, which
     // is only safe while nothing has been recorded against them.
     const strafeField = await StrafeField.create(opts.device, system.canvasSize);
-    strafeField.setWrap(loaded.world.boundaryConditions === BC.WRAP);
+    // This fork has no periodic topology. Every mode uses edge-clamped field
+    // sampling; BC.DISH adds its circular mask in the physics shader.
+    strafeField.setWrap(false);
     system.setStrafeField(strafeField.view(), strafeField.size);
 
     const targets = new RenderTargets(opts.device);
@@ -700,6 +705,7 @@ export class Orchestrator implements CommandBus {
     // a hit too, and it changed no rule, so restarting the simulation for it
     // would throw away the state the user is still deciding about.
     if (selected !== null && isHit(selected) && this.pickCommits) {
+      this.lineageGeneration += 1;
       this.resetForBehavior();
       // ANNOUNCED HERE rather than from `describe`, because this is the branch
       // that knows the click COMMITTED. `describe` runs for the label whenever
@@ -776,6 +782,7 @@ export class Orchestrator implements CommandBus {
     const currentView: SettledView = {
       pan: this.camera.state.pan,
       zoom: this.camera.state.zoom,
+      rotation: this.camera.state.rotation,
       mode: this.camera.state.mode,
     };
     // A HELD FRAME RENDERS NOTHING, so anything that changes what the picture
@@ -854,6 +861,7 @@ export class Orchestrator implements CommandBus {
       canvasSize: this.system.canvasSize,
       pan: this.camera.state.pan,
       zoom: this.camera.state.zoom,
+      rotation: this.camera.state.rotation,
       physicsSteps: this.system.physicsSteps,
       drawPower: this.prefs.drawPower,
       drawSize: this.prefs.drawSize,
@@ -920,6 +928,7 @@ export class Orchestrator implements CommandBus {
         windowSize,
         pan: this.camera.state.pan,
         zoom: this.camera.state.zoom,
+        rotation: this.camera.state.rotation,
       },
       this.prefs,
       this.overlayState(),
@@ -1009,6 +1018,7 @@ export class Orchestrator implements CommandBus {
           windowSize,
           pan: this.camera.state.pan,
           zoom: this.camera.state.zoom,
+          rotation: this.camera.state.rotation,
         },
         this.prefs,
         {
@@ -1361,6 +1371,7 @@ export class Orchestrator implements CommandBus {
       this.system.canvasSize,
       cam.pan,
       cam.zoom,
+      cam.rotation,
     );
     return worldToUv(world, this.strafeField.size);
   }
@@ -1376,13 +1387,10 @@ export class Orchestrator implements CommandBus {
    * shader reads, and anything added later cannot disagree about whether the
    * highlight is running:
    *
-   *   - the `oneClickSelection` preference, which is the explicit opt-out; and
-   *   - A SINGLE COHORT, where the feature is not merely unnecessary but
-   *     actively wrong. With one cohort every particle is in it, so the first
-   *     click would light the entire screen (dimming nothing, since there is no
-   *     "outside") and the user would see no feedback at all -- then need a
-   *     second click for a selection that could never have gone anywhere else.
-   *     A confirmation step with one possible answer is pure cost.
+   * The advanced `oneClickSelection` preference is the sole explicit opt-out.
+   * A single-cohort culture still enters the staged state: the registry and
+   * confirmation button provide the feedback that the canvas cannot, and a
+   * deliberate confirm is safer than silently replacing the dish on click.
    *
    * Reads the SELECTED config's cohort count, matching what `camBrush.wgsl`
    * colours by and what the Cohorts control edits. With several configs loaded
@@ -1390,8 +1398,7 @@ export class Orchestrator implements CommandBus {
    * follows the same rule rather than inventing a second one.
    */
   private get highlightEnabled(): boolean {
-    if (this.prefs.oneClickSelection) return false;
-    return selectedConfig(this.project).cohorts > 1;
+    return !this.prefs.oneClickSelection;
   }
 
   /**
@@ -1452,16 +1459,16 @@ export class Orchestrator implements CommandBus {
       return isHit(result);
     }
 
-    // ASKED BEFORE THE TRANSITION, not after. `apply` CLEARS the highlight on a
-    // 'commit' verdict -- so letting it run and then refusing the adoption would
-    // put the cohort out while changing nothing: the lit cohort would go dark on
-    // click, which reads as the feature being broken rather than as the
-    // selection being declined. Classifying first lets a refused commit leave
-    // the highlight exactly where it was, so the user can raise the mutation
-    // scale and click again.
-    if (noOp && this.highlight.classify(result) === 'commit') return false;
-
-    return this.highlight.apply(result) === 'commit';
+    // Canvas clicks only AIM. A second click on the same cohort used to commit,
+    // which made a casual inspection replace the whole culture before the user
+    // had time to understand what happened. Explicit confirmation (button or
+    // Enter) is the only commit route now; clicking elsewhere simply re-aims.
+    if (!isHit(result)) {
+      this.highlight.clear();
+      return false;
+    }
+    this.highlight.set(result.cohort);
+    return false;
   }
 
   /**
@@ -1496,7 +1503,14 @@ export class Orchestrator implements CommandBus {
         // The one place the pick inputs are built, so a dispatch and anything
         // reasoning about the same pick cannot disagree about where it was
         // aimed or how wide it searched (`selection_commands.py:76-95`).
-        const target = screenToWorld(pixel, windowSize, canvasSize, cam.pan, cam.zoom);
+        const target = screenToWorld(
+          pixel,
+          windowSize,
+          canvasSize,
+          cam.pan,
+          cam.zoom,
+          cam.rotation,
+        );
         // Through the transform, not a fudge factor, so the tolerance is
         // exactly 40 screen pixels at any zoom.
         //
@@ -1513,6 +1527,7 @@ export class Orchestrator implements CommandBus {
               canvasSize,
               cam.pan,
               cam.zoom,
+              cam.rotation,
             );
         // THE HIGHLIGHT GOES WITH THE PICK, so the reduce pass can give the lit
         // cohort priority within a small radius of the cursor -- otherwise a
@@ -1617,9 +1632,9 @@ export class Orchestrator implements CommandBus {
     // `setPopulationLayout`, the panel's Cohorts control through `editSetting`,
     // and a preset load or an undo through `applyProject` -- all of which
     // change the count and none of which cleared the highlight. This is the one
-    // place project state changes, which is the same reason `setWrap` is called
-    // from here: a single choke point is what stops a new caller reintroducing
-    // the bug by forgetting.
+    // place project state changes, which is the same reason boundary-dependent
+    // collaborators are synchronized here: a single choke point stops a new
+    // caller reintroducing the bug by forgetting.
     //
     // COMPARES THE COUNT, not the config identity. Every slider drag calls this
     // method, and clearing on any project change at all would put the highlight
@@ -1631,19 +1646,10 @@ export class Orchestrator implements CommandBus {
     this.system.applyProject(project.configs, project.world);
 
     if (selectedConfig(project).cohorts !== cohortsBefore) this.clearHighlight();
-    // The field samples the world the same way the canvas does, so its wrap mode
-    // follows the boundary condition -- and it belongs in THIS method because
-    // this being the single place project state changes is exactly what stops a
-    // load or an undo leaving the two disagreeing (`orchestrator.py:381-385`
-    // makes the same call for the same reason). Invariant 9: four things must
-    // agree on the boundary mode, and the field is one of them.
-    //
-    // See `StrafeField.setWrap` for why this currently issues no GPU work: the
-    // field's readers already take their address mode from the canvas's
-    // sampler, so the two cannot disagree. The call stays because the ACCOUNTING
-    // belongs here, and because the day the field grows its own sampler this is
-    // where it would have had to go anyway.
-    this.strafeField.setWrap(project.world.boundaryConditions === BC.WRAP);
+    // The fork has no periodic field sampler. Keep the compatibility diagnostic
+    // explicitly false whenever project state changes, including loads and undo,
+    // so a future field-owned sampler cannot accidentally restore edge tiling.
+    this.strafeField.setWrap(false);
   }
 
   /**
@@ -2165,6 +2171,10 @@ export class Orchestrator implements CommandBus {
         this.loadSharedConfig(command.saved, command.name);
         return;
 
+      case 'seedSpecimenArena':
+        this.seedSpecimenArena(command.saved, command.name);
+        return;
+
       case 'clearSaveError':
         // Dispatched when the save dialog OPENS. The dialog renders `saveError`
         // from status every frame -- it must not read it once, right after
@@ -2504,6 +2514,34 @@ export class Orchestrator implements CommandBus {
     this.resetForConfig();
   }
 
+  /** Replace the live project with a browser-local, multi-lineage petri dish. */
+  private seedSpecimenArena(saved: SavedConfig, name: string): void {
+    if (saved.configs.length === 0) {
+      this.notify('Choose at least one specimen before seeding an arena.');
+      return;
+    }
+    const before = this.prePreviewProject(this.project);
+    const arenaName = sanitizeName(name) || 'Specimen arena';
+    this.setProject(
+      makeProject({
+        configs: saved.configs,
+        world: saved.world,
+        name: arenaName,
+        selected: 0,
+      }),
+    );
+    this.recordHistory(before, 'seed specimen arena');
+    this.previewOrigins.clear();
+    this.presetName = arenaName;
+    this.configOrigin = null;
+    this.saveError = '';
+    this.lineageGeneration = 0;
+    this.clearHighlight();
+    this.system.reset();
+    const noun = saved.configs.length === 1 ? 'lineage' : 'lineages';
+    this.notify(`Seeded ${saved.configs.length} specimen ${noun}.`);
+  }
+
   /** Commit a load: settings, world, name, camera, and one history entry. */
   private loadConfig(category: string, name: string): void {
     const entry = this.resolveEntry(category, name);
@@ -2751,7 +2789,7 @@ export class Orchestrator implements CommandBus {
       this.device,
       replacement.canvasSize,
     );
-    replacementField.setWrap(this.project.world.boundaryConditions === BC.WRAP);
+    replacementField.setWrap(false);
     replacement.setStrafeField(replacementField.view(), replacementField.size);
     replacement.applyProject(this.project.configs, this.project.world);
 
@@ -2806,6 +2844,7 @@ export class Orchestrator implements CommandBus {
         canvasSize,
         cam.pan,
         cam.zoom,
+        cam.rotation,
       ),
       camMode: cam.mode,
       camPan: cam.pan,
@@ -2818,6 +2857,7 @@ export class Orchestrator implements CommandBus {
       preset: this.presetName,
       entityCount: this.system.entityCount,
       frameCount: this.system.frameCount,
+      lineageGeneration: this.lineageGeneration,
       // NOT inside `settingsSources()`: the mutation overlay reads this and
       // refreshes while the panel is shut, where that payload is empty. An
       // `.every()` over 80 floats is nothing next to the deep copy the
@@ -2899,6 +2939,15 @@ export class Orchestrator implements CommandBus {
    */
   projectDocument(): unknown {
     return toDocument(this.project.configs, this.project.world);
+  }
+
+  /** The selected lineage only; the specimen shelf never captures sibling slots. */
+  specimenSnapshot(): SpecimenSnapshot {
+    return {
+      projectName: this.project.name,
+      generation: this.lineageGeneration,
+      document: toDocument([selectedConfig(this.project)], this.project.world),
+    };
   }
 
   /** Every user save, unparsed. See `CommandBus.savedDocuments`. */

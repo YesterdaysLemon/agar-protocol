@@ -66,28 +66,12 @@ export class StrafeField {
   private uniformGroup: GPUBindGroup | null = null;
 
   /**
-   * Follows the world's boundary mode.
+   * Compatibility diagnostic for the upstream field boundary hook.
    *
-   * STORED, WITH NO GPU WORK TO DO, and that is worth being explicit about
-   * rather than quietly omitting. The desktop sets `texture.repeat_x/y` here
-   * because wrap is a TEXTURE property in GL. In WebGPU it is a SAMPLER
-   * property, and this class owns no sampler: the field is never read by its own
-   * shader (`strafe_draw.frag:13-14`). Its two readers own the sampling, and
-   * both are already right --
-   *
-   *   - `entityUpdate.wgsl` binds it at compute group 1 binding 3, which
-   *     `ParticleSystem.buildTextureGroups` fills with the SAME sampler as the
-   *     canvas's binding 1. One variant per address mode, so the field cannot
-   *     disagree with the canvas about the boundary. The desktop has to state
-   *     this twice and keep the two in step; here it is structural.
-   *   - `frameAssembly.wgsl` shares the linear-clamp target sampler, and its
-   *     overlay is guarded by `inside`, so it never samples outside [0,1] and
-   *     wrap is unreachable.
-   *
-   * Kept anyway, because invariant 9 wants four things to agree on the boundary
-   * mode and this is the fourth: `Orchestrator.setProject` calls it, so the
-   * accounting is visible at the one place project state changes. If it ever
-   * grows a sampler of its own, the call site is already there.
+   * This fork always stores `false`: ParticleSystem owns only an edge-clamped
+   * sampler, while `entityUpdate.wgsl` rejects reads beyond the circular vessel.
+   * Keeping the hook makes that invariant visible at each project/rebuild choke
+   * point and gives a future field-owned sampler an explicit non-periodic value.
    */
   private wrap = false;
 
@@ -201,12 +185,12 @@ export class StrafeField {
     return this.textureView;
   }
 
-  /** Follow the world's boundary mode. See the `wrap` field for what this does. */
+  /** Record the non-periodic boundary invariant. See the `wrap` field above. */
   setWrap(wrap: boolean): void {
     this.wrap = wrap;
   }
 
-  /** Whether the field is following a wrapping boundary. Diagnostics only. */
+  /** Whether a periodic field path was requested. Must remain false here. */
   get wrapping(): boolean {
     return this.wrap;
   }
