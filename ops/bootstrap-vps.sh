@@ -21,7 +21,11 @@ OPERATOR_USER="ali"
 APPS_FILE="/etc/deploy-manager/apps.json"
 APP_ENV_FILE="/etc/deploy-manager/apps/${APP_ID}.env"
 MANAGER_ENV_FILE="/etc/deploy-manager/deploy-manager.env"
+# Caddy keeps one file per site: the Caddyfile only imports sites/*.caddy, and
+# /etc/caddy is a git repository. Agar's route is only its own site file.
 CADDY_FILE="/etc/caddy/Caddyfile"
+CADDY_SITES="/etc/caddy/sites"
+CADDY_SITE="${CADDY_SITES}/${APP_HOST}.caddy"
 DEPLOY_RUNNER="/usr/local/sbin/deploy-app-run"
 SECRET_EXPORT="/home/${OPERATOR_USER}/.agar-protocol-deploy-secret"
 
@@ -79,12 +83,22 @@ if [[ ! -e "${APP_ENV_FILE}" ]]; then
   done
 fi
 
+if [[ ! -d "${CADDY_SITES}" ]]; then
+  echo "bootstrap-vps: no ${CADDY_SITES}; Caddy is not in the one-file-per-site layout" >&2
+  exit 65
+fi
+
 stage_dir="$(mktemp -d)"
 backup_dir="/root/agar-protocol-bootstrap-backups/$(date -u +%Y%m%dT%H%M%SZ)"
 mkdir -p "${backup_dir}"
 cp -a "${APPS_FILE}" "${backup_dir}/apps.json"
 cp -a "${MANAGER_ENV_FILE}" "${backup_dir}/deploy-manager.env"
-cp -a "${CADDY_FILE}" "${backup_dir}/Caddyfile"
+if [[ -e "${CADDY_SITE}" ]]; then
+  cp -a "${CADDY_SITE}" "${backup_dir}/site.caddy"
+  had_site=1
+else
+  had_site=0
+fi
 if [[ -e "${APP_ENV_FILE}" ]]; then
   cp -a "${APP_ENV_FILE}" "${backup_dir}/agar.env"
   had_app_env=1
@@ -101,7 +115,11 @@ rollback() {
     echo "bootstrap-vps: restoring control-plane files from ${backup_dir}" >&2
     cp -a "${backup_dir}/apps.json" "${APPS_FILE}"
     cp -a "${backup_dir}/deploy-manager.env" "${MANAGER_ENV_FILE}"
-    cp -a "${backup_dir}/Caddyfile" "${CADDY_FILE}"
+    if [[ "${had_site}" -eq 1 ]]; then
+      cp -a "${backup_dir}/site.caddy" "${CADDY_SITE}"
+    else
+      rm -f "${CADDY_SITE}"
+    fi
     if [[ "${had_app_env}" -eq 1 ]]; then
       cp -a "${backup_dir}/agar.env" "${APP_ENV_FILE}"
     else
@@ -188,30 +206,32 @@ if [[ "${#deploy_secret}" -lt 32 ]]; then
   exit 65
 fi
 
-cp "${CADDY_FILE}" "${stage_dir}/Caddyfile"
-if grep -Fq "${APP_HOST} {" "${stage_dir}/Caddyfile"; then
-  grep -Fq "reverse_proxy 127.0.0.1:${APP_PORT}" "${stage_dir}/Caddyfile" || {
+# Validate against a staged copy of the whole config: its import of
+# sites/*.caddy is relative, so it picks up the staged site files.
+mkdir -p "${stage_dir}/caddy"
+cp -a "${CADDY_FILE}" "${stage_dir}/caddy/Caddyfile"
+cp -a "${CADDY_SITES}" "${stage_dir}/caddy/sites"
+if [[ "${had_site}" -eq 1 ]]; then
+  grep -Fq "reverse_proxy 127.0.0.1:${APP_PORT}" "${CADDY_SITE}" || {
     echo "bootstrap-vps: existing ${APP_HOST} route does not target ${APP_PORT}" >&2
     exit 65
   }
 else
-  cat >>"${stage_dir}/Caddyfile" <<EOF
-
-# BEGIN AGAR PROTOCOL
+  cat >"${stage_dir}/caddy/sites/${APP_HOST}.caddy" <<EOF
 ${APP_HOST} {
 	reverse_proxy 127.0.0.1:${APP_PORT}
 }
-# END AGAR PROTOCOL
 EOF
 fi
-caddy validate --config "${stage_dir}/Caddyfile" --adapter caddyfile >/dev/null
+caddy validate --config "${stage_dir}/caddy/Caddyfile" --adapter caddyfile >/dev/null
 
 install -o root -g root -m 0644 "${stage_dir}/apps.json" "${APPS_FILE}"
 install -o root -g root -m 0644 "${stage_dir}/agar.env" "${APP_ENV_FILE}"
 install -o root -g root -m "$(stat -c '%a' "${MANAGER_ENV_FILE}")" \
   "${stage_dir}/deploy-manager.env" "${MANAGER_ENV_FILE}"
-install -o root -g root -m "$(stat -c '%a' "${CADDY_FILE}")" \
-  "${stage_dir}/Caddyfile" "${CADDY_FILE}"
+if [[ "${had_site}" -eq 0 ]]; then
+  install -o root -g root -m 0644 "${stage_dir}/caddy/sites/${APP_HOST}.caddy" "${CADDY_SITE}"
+fi
 
 systemctl restart deploy-manager
 if ! wait_for_http "http://127.0.0.1:9019/healthz" 30 1; then
@@ -232,5 +252,8 @@ install -o "${OPERATOR_USER}" -g "${OPERATOR_USER}" -m 0600 \
 committed=1
 rm -rf "${stage_dir}"
 trap - EXIT HUP INT TERM
+if [[ "${had_site}" -eq 0 ]]; then
+  git -C /etc/caddy add "${CADDY_SITE}" && git -C /etc/caddy commit -q -m "Add ${APP_HOST}" || true
+fi
 
 echo "BOOTSTRAP_OK app=${APP_ID} sha=${deploy_sha} port=${APP_PORT} backup=${backup_dir}"
